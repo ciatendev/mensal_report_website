@@ -1,0 +1,119 @@
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>{{templateTitle}}</title>
+<style>
+  @page { size: A4; margin: 15mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Helvetica Neue", Arial, sans-serif; color: #111; font-size: 10.5px; line-height: 1.4; margin: 0; padding: 0; }
+  table { width: 100%; border-collapse: collapse; }
+  a { color: #0645ad; text-decoration: underline; }
+  .top-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 14px; }
+  .top-header h1 { font-size: 14px; font-weight: 700; text-transform: uppercase; margin: 0; max-width: 70%; }
+  .top-header img { height: 40px; }
+  .section-box { border: 1px solid #000; margin-bottom: 10px; page-break-inside: avoid; }
+  .section-title { font-weight: 700; font-size: 10.5px; padding: 4px 6px; border-bottom: 1px solid #000; background: #f2f2f2; }
+  .header-fields-table { table-layout: fixed; }
+  .header-fields-table td { border: 1px solid #000; padding: 4px 6px; vertical-align: top; }
+  .field-label { display: block; font-size: 9px; color: #333; }
+  .field-value { display: block; font-size: 9px; margin-top: 2px; }
+  .activities-table th { border: 1px solid #000; padding: 5px 6px; background: #f2f2f2; font-size: 9.5px; text-align: center; }
+  .activities-table th.col-activity { text-align: left; }
+  .activities-table td { border: 1px solid #000; padding: 5px 6px; vertical-align: top; }
+  .col-sim, .col-nao { width: 34px; text-align: center; }
+  .col-details { width: 38%; }
+  .checkbox-mark { display: inline-block; width: 11px; height: 11px; border: 1.3px solid #000; text-align: center; line-height: 10px; font-size: 9px; font-weight: 700; }
+  .activity-row { page-break-inside: avoid; }
+  .free-text-section { page-break-inside: avoid; }
+  .free-text-title { font-weight: 700; font-size: 10.5px; padding: 4px 6px; background: #f2f2f2; border: 1px solid #000; border-bottom: none; }
+  .free-text-value { border: 1px solid #000; padding: 8px 6px; min-height: 28px; }
+  .free-text-item { padding: 2px 0; }
+  .free-text-item:not(:last-child) { border-bottom: 1px dashed #ddd; margin-bottom: 3px; padding-bottom: 4px; }
+  .additional-question { padding: 6px 8px; border: 1px solid #000; border-top: none; }
+  .additional-question .field-label { font-size: 9.5px; font-weight: 600; color: #111; }
+  .signature-section { margin-top: 26px; page-break-inside: avoid; }
+  .signature-caption { font-size: 10px; margin-bottom: 4px; }
+  .signature-image { max-width: 240px; max-height: 100px; border-bottom: 1px solid #000; display: block; margin-bottom: 4px; }
+  .signature-meta { font-size: 8.5px; color: #555; }
+  .footer { margin-top: 24px; font-size: 8px; color: #999; text-align: center; border-top: 1px solid #eee; padding-top: 8px; }
+</style>
+</head>
+<body>
+  <div class="top-header">
+    <h1>{{templateTitle}}</h1>
+    <img src="{{logoBase64}}" alt="Logo" />
+  </div>
+
+  <div class="section-box">
+    <div class="section-title">1. DADOS DO BOLSISTA</div>
+    <table class="header-fields-table">
+      <tr>
+        <td style="width: 33.33%;">
+          <span class="field-label">NOME DO BOLSISTA</span>
+          <span class="field-value">{{submittedByName}}</span>
+        </td>
+        <td style="width: 33.33%;">
+          <span class="field-label">NOME DO NÚCLEO OU PLATAFORMA</span>
+          <span class="field-value">{{nucleusName}}</span>
+        </td>
+        <td style="width: 33.33%;">
+          <span class="field-label">MÊS DE REFERÊNCIA</span>
+          <span class="field-value">{{reportMonth}}</span>
+        </td>
+      </tr>
+    </table>
+  </div>
+
+  {{#each sections}}
+    {{#if isActivity}}
+    <table class="activities-table" style="margin-bottom: 10px;">
+      <thead>
+        <tr>
+          <th class="col-activity">{{order}}. {{title}}</th>
+          <th class="col-sim">SIM</th>
+          <th class="col-nao">NÃO</th>
+        <th class="col-details">Adendo e links/justificativa</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each rows}}
+        <tr class="activity-row" style="{{styleCss}}">
+          <td>{{{descriptionHtml}}}</td>
+          <td class="col-sim"><span class="checkbox-mark">{{#if isSim}}X{{/if}}</span></td>
+          <td class="col-nao"><span class="checkbox-mark">{{#if isNao}}X{{/if}}</span></td>
+          <td class="col-details">{{{detailsAndJustificationHtml}}}</td>
+        </tr>
+        {{/each}}
+        {{#unless rows.length}}
+        <tr class="activity-row"><td colspan="4" style="color:#777; font-style: italic;">Nenhuma atividade adicionada.</td></tr>
+        {{/unless}}
+      </tbody>
+    </table>
+    {{else}}
+    <div class="free-text-section" style="margin-bottom: 10px;">
+      <div class="free-text-title">{{order}}. {{label}}</div>
+      <div class="free-text-value">
+        {{#if items.length}}
+          {{#each items}}
+            <div class="free-text-item" style="{{styleCss}}">{{{html}}}</div>
+          {{/each}}
+        {{else}}
+          <span style="color:#777; font-style: italic;">Nenhum item adicionado.</span>
+        {{/if}}
+      </div>
+    </div>
+    {{/if}}
+  {{/each}}
+
+  <div class="signature-section">
+    <div class="signature-caption">Assinatura Digital do Responsável:</div>
+    <img class="signature-image" src="{{signatureBase64}}" alt="Assinatura" />
+    <div class="signature-meta">
+      {{submittedByName}} &middot; {{submittedByEmail}} &middot; enviado em {{formatDate submittedAt}}
+      {{#if ipAddress}} &middot; IP: {{ipAddress}}{{/if}}
+    </div>
+  </div>
+
+  <div class="footer">Documento gerado automaticamente pelo Sistema de Relatórios &mdash; {{formatDate submittedAt}}</div>
+</body>
+</html>

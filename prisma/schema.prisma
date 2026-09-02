@@ -1,0 +1,222 @@
+// Prisma Schema - Sistema de Gerenciamento e Preenchimento
+// de Relatórios/Formulários
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  PENDING
+  APPROVED
+  BLOCKED
+}
+
+enum UserRole {
+  SUPER_USER
+  USER
+}
+
+enum QuestionType {
+  TEXT
+  TEXTAREA 
+  NUMBER
+  DATE
+  SELECT
+  CHECKBOX
+  YES_NO_JUSTIFY 
+}
+
+enum SignatureSource {
+  DRAWN
+  UPLOADED
+}
+
+enum DeliveryStatus {
+  PENDING
+  SENT
+  FAILED
+  QUEUED
+}
+
+// Tabela de conta
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// Tabela de sessoes 
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+// Tabela de token
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// Tabela de user
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+
+  role   UserRole   @default(USER) // Tipo de acesso 
+  status UserStatus @default(PENDING) // controla a Whitelist
+
+  accessRequestNotifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  approvedById  String?
+  approvedBy    User?   @relation("Approvals", fields: [approvedById], references: [id])
+  approvedUsers User[]  @relation("Approvals")
+
+  accounts    Account[]
+  sessions    Session[]
+  templates   Template[]   @relation("TemplateCreator")
+  submissions Submission[]
+
+  @@map("users")
+}
+
+// Tabela para o templante de relatorios
+model Template {
+  id          String  @id @default(cuid())
+  title       String
+  description String? @db.Text
+  isActive    Boolean @default(true)
+
+  createdById String
+  createdBy   User   @relation("TemplateCreator", fields: [createdById], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions   TemplateQuestion[]
+  submissions Submission[]
+
+  @@map("templates")
+}
+
+// Tabela de templante de pergunta
+model TemplateQuestion {
+  id         String   @id @default(cuid())
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  label      String
+  type       QuestionType
+  isRequired Boolean      @default(true)
+  order      Int          @default(0)
+
+  // Se a pergunta eh tem resposta repitivel
+  isRepeatable Boolean @default(false)
+
+  // Adiciona linha de exemplo
+  defaultRowText String? @db.Text
+
+  // Para SELECT e CHECKBOX
+  options Json?
+
+  config Json?
+
+  // formatação aplicada à resposta desta pergunta no PDF final.
+  fontSize Int     @default(11)
+  isBold   Boolean @default(false)
+  isItalic Boolean @default(false)
+
+  answers TemplateAnswer[]
+
+  @@index([templateId])
+  @@map("template_questions")
+}
+
+// Tabela de submissao
+model Submission {
+  id         String   @id @default(cuid())
+  templateId String
+  template   Template @relation(fields: [templateId], references: [id])
+
+  submittedById String
+  submittedBy   User   @relation(fields: [submittedById], references: [id])
+
+  submittedByName String
+
+  reportMonth String?
+
+  // Assinatura
+  signatureBase64 String          @db.LongText
+  signatureSource SignatureSource
+
+  ipAddress String?
+
+  pdfUrl String?
+
+  // estado do envio do PDF por e-mail
+  deliveryStatus        DeliveryStatus @default(PENDING)
+  deliveryAttempts      Int            @default(0)
+  lastDeliveryError     String?        @db.Text
+  lastDeliveryAttemptAt DateTime?
+  deliveredAt           DateTime?
+  queuedAt              DateTime?
+
+  createdAt DateTime @default(now())
+
+  answers TemplateAnswer[]
+
+  @@index([templateId])
+  @@index([submittedById])
+  @@map("submissions")
+}
+
+// Tabela de resposta 
+model TemplateAnswer {
+  id           String     @id @default(cuid())
+  submissionId String
+  submission   Submission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  questionId String
+  question   TemplateQuestion @relation(fields: [questionId], references: [id])
+
+  // Resposta armazenada como texto 
+  value String @db.Text
+
+  @@index([submissionId])
+  @@index([questionId])
+  @@map("submission_answers")
+}
