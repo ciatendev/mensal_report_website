@@ -2,65 +2,13 @@
 
 import { useState, useMemo } from "react";
 import { signOut } from "next-auth/react";
-
-// Types
-type Registro = {
-  id: string;
-  timestamp: string;
-  ano: number;
-  equipe: string;
-  indicador_key: string;
-  indicador: string;
-  nome: string;
-  tipo?: string;
-  status?: string;
-  evidencia?: string;
-  data_realizacao?: string;
-  participantes?: string;
-  canal?: string;
-  alcance?: string;
-  financiador?: string;
-  valor_aprovado?: string;
-  moeda?: string;
-  validado: "Pendente" | "Sim" | "Não" | "Ajuste solicitado";
-  nota_validacao?: string;
-  data_validacao?: string;
-  ultima_edicao?: string;
-};
-
-// Dados auxiliares de listas e domínios
-const EQUIPES = [
-  "Lilian e Antônio", "Olívia e Gabriel", "Márcio e Malvina",
-  "Vagner e Regiane", "Vinícius, Kelson e Victor", "Victor Barbosa",
-  "Dorcas e Andressa", "Fábio e Roni", "Ângelo e Anathália"
-];
-
-const INDICADORES: Record<string, string> = {
-  politicas: "Documento de recomendação para políticas públicas",
-  publicacoes: "Número de publicações científicas",
-  cursos: "Número de cursos, eventos científicos ou outras ações realizadas por período",
-  tecnologia: "Número de projetos voltados ao desenvolvimento de fármacos, dispositivos biotecnológicos e outras tecnologias",
-  divulgacao: "Alcance de Divulgação nas Redes Sociais",
-  recursos: "Captação de Recursos para Pesquisa, Inovação e Eventos"
-};
-
-const TIPOS: Record<string, string[]> = {
-  politicas: ["Mapa de evidências", "Síntese de Evidências para Políticas – SEP", "Nota técnica", "Relatório técnico", "Documento de recomendação", "Plano de ação", "Protocolo", "Diretriz", "Outro"],
-  publicacoes: ["Artigo", "Preprint", "Capítulo de livro", "Livro", "Relatório técnico com ISSN/ISBN", "Outro"],
-  cursos: ["Curso", "Oficina", "Workshop", "Seminário", "Congresso", "Webinar", "Capacitação", "Campanha educativa/formativa", "Outra ação"],
-  tecnologia: ["Software", "Sistema", "Dashboard/painel", "Chatbot", "Aplicativo", "Linha de cuidado digital", "Biobanco", "Dispositivo", "Produto biotecnológico", "Protótipo", "Outro"],
-  divulgacao: ["Post", "Reel", "Story", "Vídeo", "Entrevista", "Matéria", "Campanha", "Podcast", "Outro"]
-};
-
-const STATUSES: Record<string, string[]> = {
-  politicas: ["Planejado", "Em andamento", "Concluído", "Cancelado"],
-  publicacoes: ["Em elaboração", "Submetido", "Aceito", "Publicado"],
-  cursos: ["Planejado", "Em andamento", "Concluído", "Cancelado"],
-  tecnologia: ["Ideação", "Desenvolvimento", "Protótipo funcional", "Piloto", "Implementado"],
-  recursos: ["Em elaboração", "Submetido", "Em análise", "Aprovado", "Não aprovado", "Recurso recebido"]
-};
-
-const CANAIS = ["Instagram CIATEN", "Instagram parceiro", "YouTube", "Site", "TV", "Rádio", "Podcast", "Imprensa escrita/digital", "Outro"];
+import { FormBaseProps, Registro, EQUIPES, CANAIS, TIPOS, INDICADORES, STATUSES } from "./forms/forms";
+import { FormCourses } from "./forms/formCourses";
+import { FormDisclouse } from "./forms/formDisclouse";
+import { FormFeatures } from "./forms/formFeatures";
+import { FormPoliticas } from "./forms/formPolitics";
+import { FormPublications } from "./forms/formPublications";
+import { FormTechnology } from "./forms/formTechnology";
 
 export default function AnnualActionsReportPage() {
   const [activeTab, setActiveTab] = useState<string>("registro");
@@ -402,189 +350,17 @@ export default function AnnualActionsReportPage() {
             </div>
 
             {/* Campos Específicos por Indicador */}
-            {indicadorSel === "politicas" && (
-              <div className="bg-white border border-[#dbe4ec] rounded-[16px] p-5 shadow-[0_8px_24px_rgba(31,95,139,0.06)] space-y-3">
-                <h2 className="text-lg font-bold m-0">Políticas públicas</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Tipo de produto *</label>
-                    <select value={tipo} onChange={(e) => setTipo(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                      <option value="">Selecione</option>
-                      {TIPOS.politicas.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Situação *</label>
-                    <select value={status} onChange={(e) => setStatus(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                      <option value="">Selecione</option>
-                      {STATUSES.politicas.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold mb-1">Evidência/link *</label>
-                    <input type="url" value={evidencia} onChange={(e) => setEvidencia(e.target.value)} required placeholder="https://" className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white" />
-                  </div>
-                </div>
-              </div>
-            )}
+            {indicadorSel === "politicas" && <FormPoliticas tipo={tipo} setTipo={setTipo} status={status} setStatus={setStatus} evidencia={evidencia} setEvidencia={setEvidencia} TIPOS={TIPOS} STATUSES={STATUSES} />}
 
-            {indicadorSel === "publicacoes" && (
-              <div className="bg-white border border-[#dbe4ec] rounded-[16px] p-5 shadow-[0_8px_24px_rgba(31,95,139,0.06)] space-y-3">
-                <h2 className="text-lg font-bold m-0">Publicação científica</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Tipo *</label>
-                    <select value={tipo} onChange={(e) => setTipo(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                      <option value="">Selecione</option>
-                      {TIPOS.publicacoes.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Situação *</label>
-                    <select value={status} onChange={(e) => setStatus(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                      <option value="">Selecione</option>
-                      {STATUSES.publicacoes.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold mb-1">DOI ou link *</label>
-                    <input type="url" value={evidencia} onChange={(e) => setEvidencia(e.target.value)} required placeholder="https://" className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white" />
-                  </div>
-                </div>
-              </div>
-            )}
+            {indicadorSel === "publicacoes" && <FormPublications tipo={tipo} setTipo={setTipo} status={status} setStatus={setStatus} evidencia={evidencia} setEvidencia={setEvidencia} TIPOS={TIPOS} STATUSES={STATUSES} />}
 
-            {indicadorSel === "cursos" && (
-              <div className="bg-white border border-[#dbe4ec] rounded-[16px] p-5 shadow-[0_8px_24px_rgba(31,95,139,0.06)] space-y-3">
-                <h2 className="text-lg font-bold m-0">Curso, evento ou ação</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Tipo *</label>
-                    <select value={tipo} onChange={(e) => setTipo(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                      <option value="">Selecione</option>
-                      {TIPOS.cursos.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Situação *</label>
-                    <select value={status} onChange={(e) => setStatus(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                      <option value="">Selecione</option>
-                      {STATUSES.cursos.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Data da realização</label>
-                    <input type="date" value={dataRealizacao} onChange={(e) => setDataRealizacao(e.target.value)} className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Nº de participantes</label>
-                    <input type="number" min="0" value={participantes} onChange={(e) => setParticipantes(e.target.value)} placeholder="Opcional" className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold mb-1">Evidência/link *</label>
-                    <input type="url" value={evidencia} onChange={(e) => setEvidencia(e.target.value)} required placeholder="https://" className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white" />
-                  </div>
-                </div>
-              </div>
-            )}
+            {indicadorSel === "cursos" && <FormCourses tipo={tipo} setTipo={setTipo} status={status} setStatus={setStatus} dataRealizacao={dataRealizacao} setDataRealizacao={setDataRealizacao} participantes={participantes} setParticipantes={setParticipantes} evidencia={evidencia} setEvidencia={setEvidencia} TIPOS={TIPOS} STATUSES={STATUSES} />}
 
-            {indicadorSel === "tecnologia" && (
-              <div className="bg-white border border-[#dbe4ec] rounded-[16px] p-5 shadow-[0_8px_24px_rgba(31,95,139,0.06)] space-y-3">
-                <h2 className="text-lg font-bold m-0">Tecnologia e inovação</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Tipo *</label>
-                    <select value={tipo} onChange={(e) => setTipo(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                      <option value="">Selecione</option>
-                      {TIPOS.tecnologia.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Estágio atual *</label>
-                    <select value={status} onChange={(e) => setStatus(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                      <option value="">Selecione</option>
-                      {STATUSES.tecnologia.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold mb-1">Evidência/link *</label>
-                    <input type="url" value={evidencia} onChange={(e) => setEvidencia(e.target.value)} required placeholder="https://" className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white" />
-                  </div>
-                </div>
-              </div>
-            )}
+            {indicadorSel === "tecnologia" && <FormTechnology tipo={tipo} setTipo={setTipo} status={status} setStatus={setStatus} evidencia={evidencia} setEvidencia={setEvidencia} TIPOS={TIPOS} STATUSES={STATUSES} />}
 
-            {indicadorSel === "divulgacao" && (
-              <div className="bg-white border border-[#dbe4ec] rounded-[16px] p-5 shadow-[0_8px_24px_rgba(31,95,139,0.06)] space-y-3">
-                <h2 className="text-lg font-bold m-0">Divulgação</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Canal *</label>
-                    <select value={canal} onChange={(e) => setCanal(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                      <option value="">Selecione</option>
-                      {CANAIS.map((c) => <option key={c} value={c}>{c}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Tipo de conteúdo *</label>
-                    <select value={tipo} onChange={(e) => setTipo(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                      <option value="">Selecione</option>
-                      {TIPOS.divulgacao.map((t) => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Alcance</label>
-                    <input type="number" min="0" value={alcance} onChange={(e) => setAlcance(e.target.value)} placeholder="Se disponível" className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Link *</label>
-                    <input type="url" value={evidencia} onChange={(e) => setEvidencia(e.target.value)} required placeholder="https://" className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white" />
-                  </div>
-                </div>
-              </div>
-            )}
+            {indicadorSel === "divulgacao" && <FormDisclouse canal={canal} setCanal={setCanal} tipo={tipo} setTipo={setTipo} alcance={alcance} setAlcance={setAlcance} evidencia={evidencia} setEvidencia={setEvidencia} TIPOS={TIPOS} CANAIS={CANAIS} STATUSES={STATUSES} />}
 
-            {indicadorSel === "recursos" && (
-              <div className="bg-white border border-[#dbe4ec] rounded-[16px] p-5 shadow-[0_8px_24px_rgba(31,95,139,0.06)] space-y-3">
-                <h2 className="text-lg font-bold m-0">Captação de recursos</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Instituição financiadora *</label>
-                    <input type="text" value={financiador} onChange={(e) => setFinanciador(e.target.value)} required placeholder="Ex.: FAPEPI" className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-bold mb-1">Situação *</label>
-                    <select value={status} onChange={(e) => setStatus(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                      <option value="">Selecione</option>
-                      {STATUSES.recursos.map((s) => <option key={s} value={s}>{s}</option>)}
-                    </select>
-                  </div>
-
-                  {["Aprovado", "Recurso recebido"].includes(status) && (
-                    <>
-                      <div>
-                        <label className="block text-sm font-bold mb-1">Valor aprovado *</label>
-                        <input type="number" step="0.01" min="0" value={valorAprovado} onChange={(e) => setValorAprovado(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-bold mb-1">Moeda *</label>
-                        <select value={moeda} onChange={(e) => setMoeda(e.target.value)} required className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white">
-                          <option value="BRL">BRL</option>
-                          <option value="USD">USD</option>
-                          <option value="EUR">EUR</option>
-                          <option value="Outra">Outra</option>
-                        </select>
-                      </div>
-                    </>
-                  )}
-
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-bold mb-1">Evidência/link *</label>
-                    <input type="url" value={evidencia} onChange={(e) => setEvidencia(e.target.value)} required placeholder="https://" className="w-full border border-[#dbe4ec] rounded-[10px] p-2.5 bg-white" />
-                  </div>
-                </div>
-              </div>
-            )}
+            {indicadorSel === "recursos" && <FormFeatures financiador={financiador} setFinanciador={setFinanciador} status={status} setStatus={setStatus} evidencia={evidencia} setEvidencia={setEvidencia} valorAprovado={valorAprovado} setValorAprovado={setValorAprovado} moeda={moeda} setMoeda={setMoeda} STATUSES={STATUSES} />}
 
             {/* Painel de ações do formulário */}
             <div className="bg-white border border-[#dbe4ec] rounded-[16px] p-5 shadow-[0_8px_24px_rgba(31,95,139,0.06)] space-y-3">
