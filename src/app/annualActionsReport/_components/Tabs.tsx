@@ -1,146 +1,150 @@
 /**
- * Tabs.tsx — Abas: Meus Registros, Validação, Resultados por Equipe,
- *            Tabela 1 (Síntese CIATEN), Tabela 2 (por Núcleo), Modal.
- *
- * Todas as tabelas usam:
- *   - table-auto  → colunas dimensionadas pelo conteúdo
- *   - whitespace-normal + break-words → sem texto cortado
- *   - overflow-x-auto no container → scroll horizontal em telas pequenas
- *   - min-w-[120px] nas colunas de dados → nunca colapsam
+ * Tabs.tsx — Abas da página annualActionsReport.
+ * Usa DbRegistro (dados do banco), ActivityStatus e contabiliza() atualizados.
  */
 import React from "react";
 import { CLS } from "@/styles/tokens";
 import {
-  EQUIPES, INDICADORES, INDICADOR_LABEL_CURTO, IndicadorKey, Registro,
-  contabiliza,
+  EQUIPES, INDICADORES, INDICADOR_LABEL_CURTO, IndicadorKey,
+  DbRegistro, ActivityStatus, STATUS_LABEL, contabiliza,
 } from "../forms/domain";
 
-// ─── Shared table wrapper ─────────────────────────────────────────────────────
+// ─── Shared table primitives ─────────────────────────────────────────────────
 const TableWrap: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="overflow-x-auto -mx-1 px-1 rounded-xl">
-    <table className="table-auto w-full text-sm border-collapse min-w-[600px]">
-      {children}
-    </table>
+  <div className="overflow-x-auto rounded-xl">
+    <table className="table-auto w-full text-sm border-collapse">{children}</table>
   </div>
 );
-
-// Cabeçalho de linha de tabela (thead > tr)
 const Thead: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <thead>
-    <tr className="bg-[#1A4F7A] text-white">{children}</tr>
-  </thead>
+  <thead><tr className="bg-[#1A4F7A] text-white">{children}</tr></thead>
 );
-
 const Th: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => (
-  <th className={`p-3 text-left text-xs font-bold whitespace-normal break-words leading-snug min-w-[100px] ${className}`}>
-    {children}
-  </th>
+  <th className={`p-3 text-left text-xs font-bold whitespace-nowrap leading-snug ${className}`}>{children}</th>
+);
+const Td: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => (
+  <td className={`p-3 align-top whitespace-nowrap leading-relaxed border-b border-[#D6E2EE] ${className}`}>{children}</td>
+);
+// Td para conteúdo que pode quebrar (colunas de dados, não rótulos)
+const TdWrap: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => (
+  <td className={`p-3 align-top whitespace-normal break-words leading-relaxed border-b border-[#D6E2EE] ${className}`}>{children}</td>
 );
 
-const Td: React.FC<{ children: React.ReactNode; className?: string }> = ({ children, className = "" }) => (
-  <td className={`p-3 align-top whitespace-normal break-words leading-relaxed border-b border-[#D6E2EE] ${className}`}>
-    {children}
-  </td>
-);
+// Badge de status do ciclo de vida
+const StatusBadge: React.FC<{ status: ActivityStatus }> = ({ status }) => {
+  const cls: Record<ActivityStatus, string> = {
+    PENDING:           CLS.badgePending,
+    APPROVED:          CLS.badgeSuccess,
+    REJECTED:          CLS.badgeError,
+    ADJUSTMENT_NEEDED: "bg-[#FEF0E9] text-[#E85D1F] px-2 py-0.5 rounded-full text-xs font-bold",
+  };
+  return <span className={cls[status]}>{STATUS_LABEL[status]}</span>;
+};
 
 // ─── Meus Registros ──────────────────────────────────────────────────────────
 interface MeusRegistrosProps {
-  registros: Registro[];
+  registros: DbRegistro[];
+  loadingData: boolean;
   filtroEquipe: string;
   setFiltroEquipe: (v: string) => void;
   onEditar: (id: string) => void;
 }
 
 export const TabMeusRegistros: React.FC<MeusRegistrosProps> = ({
-  registros, filtroEquipe, setFiltroEquipe, onEditar,
+  registros, loadingData, filtroEquipe, setFiltroEquipe, onEditar,
 }) => {
-  const ajuste    = registros.filter((r) => r.equipe === filtroEquipe && r.validado === "Ajuste solicitado");
-  const pendente  = registros.filter((r) => r.equipe === filtroEquipe && (!r.validado || r.validado === "Pendente"));
-  const analisado = registros.filter((r) => r.equipe === filtroEquipe && ["Sim", "Não"].includes(r.validado));
+  const ajuste    = registros.filter((r) => r.activityStatus === "ADJUSTMENT_NEEDED");
+  const pendente  = registros.filter((r) => r.activityStatus === "PENDING");
+  const analisado = registros.filter((r) => ["APPROVED","REJECTED"].includes(r.activityStatus));
+
+  const Section: React.FC<{ title: React.ReactNode; items: DbRegistro[]; emptyMsg: string }> = ({ title, items, emptyMsg }) => (
+    <section>
+      <h3 className="text-sm font-bold flex items-center gap-2 mb-2">{title}</h3>
+      {!items.length
+        ? <p className="text-xs text-[#5A7184]">{emptyMsg}</p>
+        : items.map((r) => (
+          <div key={r.id} className={`${CLS.cardInner} p-3 flex justify-between items-start gap-3 mb-2`}>
+            <div className="min-w-0">
+              <b className="block break-words">{r.nome}</b>
+              <div className="flex gap-2 flex-wrap items-center text-xs text-[#5A7184] mt-1">
+                <StatusBadge status={r.activityStatus} />
+                <span className="break-words">{r.indicador}</span>
+              </div>
+              {r.notaValidacao && (
+                <div className="mt-2 p-2 bg-[#FFF8E7] text-[#795D13] text-xs rounded-lg break-words">
+                  <b>Nota:</b> {r.notaValidacao}
+                </div>
+              )}
+              {r.evidencia && (
+                <a href={r.evidencia} target="_blank" rel="noreferrer" className="text-xs text-[#1A4F7A] font-bold mt-2 inline-block break-all">↗ Evidência</a>
+              )}
+              {r.syncedToSheets && (
+                <span className="text-xs text-[#1B7F5A] mt-1 inline-block">✓ Sincronizado no Sheets</span>
+              )}
+            </div>
+            {["PENDING","ADJUSTMENT_NEEDED"].includes(r.activityStatus) && (
+              <button onClick={() => onEditar(r.id)} className={`${CLS.btnGhost} text-xs shrink-0`}>
+                Editar e reenviar
+              </button>
+            )}
+          </div>
+        ))
+      }
+    </section>
+  );
 
   return (
     <div className={`${CLS.card} p-5 space-y-4`}>
       <div className="flex flex-col md:flex-row justify-between items-end gap-3 border-b border-[#D6E2EE] pb-3">
         <div>
           <h2 className="text-lg font-bold text-[#1C2B3A]">Meus Registros</h2>
-          <p className="text-xs text-[#5A7184] mt-0.5">Consulte envios e corrija apenas os registros devolvidos.</p>
+          <p className="text-xs text-[#5A7184] mt-0.5">
+            {loadingData ? "Carregando…" : `${registros.length} registro(s) encontrado(s)`}
+          </p>
         </div>
         <div className="min-w-[240px]">
-          <label className={CLS.label}>Equipe</label>
+          <label className={CLS.label}>Filtrar por equipe</label>
           <select value={filtroEquipe} onChange={(e) => setFiltroEquipe(e.target.value)} className={CLS.input}>
-            <option value="">Selecione sua equipe</option>
+            <option value="">Todas as equipes</option>
             {EQUIPES.map((e) => <option key={e} value={e}>{e}</option>)}
           </select>
         </div>
       </div>
 
-      {!filtroEquipe ? (
-        <p className="text-center py-8 text-[#5A7184]">Selecione sua equipe para consultar os registros.</p>
+      {loadingData ? (
+        <div className="text-center py-10 text-[#5A7184]">
+          <span className="inline-block w-6 h-6 border-2 border-[#1A4F7A] border-t-transparent rounded-full animate-spin mb-2" />
+          <p className="text-sm">Carregando registros…</p>
+        </div>
       ) : (
-        <div className="space-y-5">
-          <section>
-            <h3 className="text-sm font-bold flex items-center gap-2 mb-2">
-              Precisa de ajuste <span className={CLS.badgePending}>{ajuste.length}</span>
-            </h3>
-            {ajuste.map((r) => (
-              <div key={r.id} className={`${CLS.cardInner} p-3 flex justify-between items-start gap-3 mb-2`}>
-                <div className="min-w-0">
-                  <b className="block break-words">{r.nome}</b>
-                  <div className="flex gap-2 flex-wrap items-center text-xs text-[#5A7184] mt-1">
-                    <span className={CLS.badgePending}>{r.validado}</span>
-                    <span className="break-words">{r.indicador}</span>
-                  </div>
-                  {r.nota_validacao && (
-                    <div className="mt-2 p-2 bg-[#FFF8E7] text-[#795D13] text-xs rounded-lg break-words">
-                      <b>Ajuste:</b> {r.nota_validacao}
-                    </div>
-                  )}
-                  {r.evidencia && (
-                    <a href={r.evidencia} target="_blank" rel="noreferrer" className="text-xs text-[#1A4F7A] font-bold mt-2 inline-block break-all">
-                      ↗ Evidência
-                    </a>
-                  )}
-                </div>
-                <button onClick={() => onEditar(r.id)} className={`${CLS.btnGhost} text-xs shrink-0`}>
-                  Editar e reenviar
-                </button>
-              </div>
-            ))}
-            {!ajuste.length && <p className="text-xs text-[#5A7184]">Nenhum registro requer ajuste.</p>}
-          </section>
-
+        <div className="space-y-6">
+          <Section title={<>Precisa de ajuste <span className="bg-[#FEF0E9] text-[#E85D1F] px-2 py-0.5 rounded-full text-xs font-bold">{ajuste.length}</span></>} items={ajuste} emptyMsg="Nenhum registro requer ajuste." />
           <details open>
-            <summary className="cursor-pointer font-bold border-b border-[#D6E2EE] pb-1 text-sm select-none">
-              Aguardando validação ({pendente.length})
-            </summary>
+            <summary className="cursor-pointer font-bold border-b border-[#D6E2EE] pb-1 text-sm select-none">Aguardando validação ({pendente.length})</summary>
             <div className="mt-2 space-y-2">
-              {pendente.map((r) => (
-                <div key={r.id} className={`${CLS.cardInner} p-3`}>
-                  <b className="block text-sm break-words">{r.nome}</b>
-                  <div className="flex gap-2 flex-wrap items-center text-xs text-[#5A7184] mt-1">
-                    <span className={CLS.badgePending}>Pendente</span>
-                    <span className="break-words">{r.indicador}</span>
+              {!pendente.length ? <p className="text-xs text-[#5A7184]">Nenhum pendente.</p>
+                : pendente.map((r) => (
+                  <div key={r.id} className={`${CLS.cardInner} p-3`}>
+                    <b className="block text-sm break-words">{r.nome}</b>
+                    <div className="flex gap-2 flex-wrap items-center text-xs text-[#5A7184] mt-1">
+                      <StatusBadge status={r.activityStatus} />
+                      <span className="break-words">{r.indicador}</span>
+                    </div>
                   </div>
-                </div>
-              ))}
-              {!pendente.length && <p className="text-xs text-[#5A7184]">Nenhum pendente.</p>}
+                ))
+              }
             </div>
           </details>
-
           <details>
-            <summary className="cursor-pointer font-bold border-b border-[#D6E2EE] pb-1 text-sm select-none">
-              Já analisados ({analisado.length})
-            </summary>
+            <summary className="cursor-pointer font-bold border-b border-[#D6E2EE] pb-1 text-sm select-none">Já analisados ({analisado.length})</summary>
             <div className="mt-2 space-y-2">
               {analisado.map((r) => (
                 <div key={r.id} className={`${CLS.cardInner} p-3`}>
                   <b className="block text-sm break-words">{r.nome}</b>
                   <div className="flex gap-2 flex-wrap items-center text-xs text-[#5A7184] mt-1">
-                    <span className={r.validado === "Sim" ? CLS.badgeSuccess : CLS.badgeError}>
-                      {r.validado === "Sim" ? "Aprovado" : "Não contabilizado"}
-                    </span>
+                    <StatusBadge status={r.activityStatus} />
                     <span className="break-words">{r.indicador}</span>
                   </div>
+                  {r.syncedToSheets && <span className="text-xs text-[#1B7F5A] mt-1 inline-block">✓ Sheets</span>}
                 </div>
               ))}
             </div>
@@ -151,28 +155,29 @@ export const TabMeusRegistros: React.FC<MeusRegistrosProps> = ({
   );
 };
 
-// ─── Validação ───────────────────────────────────────────────────────────────
+// ─── Validação (SUPER_USER) ───────────────────────────────────────────────────
 interface ValidacaoProps {
-  pendentesList: Registro[];
-  historicoList: Registro[];
+  pendentesList: DbRegistro[];
+  historicoList: DbRegistro[];
+  loadingData: boolean;
   openAjusteId: string | null;
   setOpenAjusteId: (id: string | null) => void;
   ajusteTex: Record<string, string>;
   setAjusteTex: (v: Record<string, string>) => void;
   ajusteError: string | null;
   setAjusteError: (v: string | null) => void;
-  onValidar: (id: string, status: Registro["validado"], nota?: string) => void;
+  onValidar: (id: string, status: "APPROVED" | "REJECTED" | "ADJUSTMENT_NEEDED", nota?: string) => void;
 }
 
 export const TabValidacao: React.FC<ValidacaoProps> = ({
-  pendentesList, historicoList, openAjusteId, setOpenAjusteId,
-  ajusteTex, setAjusteTex, ajusteError, setAjusteError, onValidar,
+  pendentesList, historicoList, loadingData,
+  openAjusteId, setOpenAjusteId, ajusteTex, setAjusteTex, ajusteError, setAjusteError, onValidar,
 }) => (
   <div className="space-y-4">
     <div className="flex justify-between items-end gap-4 border-b border-[#D6E2EE] pb-3">
       <div>
         <h2 className="text-lg font-bold text-[#1C2B3A]">Validação da coordenação</h2>
-        <p className="text-xs text-[#5A7184] mt-0.5">Revise a evidência e decida se o registro entra nos indicadores.</p>
+        <p className="text-xs text-[#5A7184] mt-0.5">Revise a evidência. Somente ao aprovar, o registro é sincronizado com o Google Sheets.</p>
       </div>
       <div className="text-center border border-[#D6E2EE] bg-white rounded-xl px-4 py-2 shrink-0">
         <b className="block text-2xl text-[#1A4F7A]">{pendentesList.length}</b>
@@ -182,7 +187,9 @@ export const TabValidacao: React.FC<ValidacaoProps> = ({
 
     <div className={`${CLS.card} p-5 space-y-3`}>
       <h3 className="text-sm font-bold text-[#1C2B3A]">Aguardando decisão</h3>
-      {!pendentesList.length ? (
+      {loadingData ? (
+        <p className="text-center py-6 text-[#5A7184] text-sm">Carregando…</p>
+      ) : !pendentesList.length ? (
         <p className="text-center py-6 text-[#5A7184]">Nenhum registro aguardando validação.</p>
       ) : pendentesList.map((r) => (
         <article key={r.id} className={`${CLS.cardInner} p-4 space-y-2`}>
@@ -194,8 +201,11 @@ export const TabValidacao: React.FC<ValidacaoProps> = ({
                 <span className="text-[#5A7184] break-words">{r.indicador}</span>
                 {r.tipo && <span className="text-[#5A7184]">• {r.tipo}</span>}
               </div>
+              <div className="text-xs text-[#5A7184] mt-0.5">
+                Por: <b>{r.author.name ?? r.author.email}</b> · {new Date(r.createdAt).toLocaleDateString("pt-BR")}
+              </div>
             </div>
-            <span className={`${CLS.badgePending} shrink-0`}>{r.status || "—"}</span>
+            <span className="text-xs text-[#5A7184] shrink-0 break-words max-w-[120px] text-right">{r.statusAtividade || "—"}</span>
           </div>
 
           {r.evidencia
@@ -203,9 +213,15 @@ export const TabValidacao: React.FC<ValidacaoProps> = ({
             : <span className="text-xs text-[#5A7184]">Sem evidência</span>}
 
           <div className="flex gap-2 flex-wrap border-t border-[#D6E2EE] pt-2">
-            <button onClick={() => onValidar(r.id, "Sim")} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#E7F6EF] text-[#1B7F5A] hover:bg-[#d0efdf] transition">✓ Aprovar</button>
-            <button onClick={() => setOpenAjusteId(openAjusteId === r.id ? null : r.id)} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FFF4D6] text-[#8B6200] hover:bg-[#ffe8a8] transition">↶ Solicitar ajuste</button>
-            <button onClick={() => onValidar(r.id, "Não")} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FDEAEA] text-[#A13B3B] hover:bg-[#fad3d3] transition">✕ Não contabilizar</button>
+            <button onClick={() => onValidar(r.id, "APPROVED")} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#E7F6EF] text-[#1B7F5A] hover:bg-[#d0efdf] transition">
+              ✓ Aprovar e sincronizar Sheets
+            </button>
+            <button onClick={() => setOpenAjusteId(openAjusteId === r.id ? null : r.id)} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FEF0E9] text-[#E85D1F] hover:bg-[#fcd8c4] transition">
+              ↶ Solicitar ajuste
+            </button>
+            <button onClick={() => onValidar(r.id, "REJECTED")} className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FDEAEA] text-[#A13B3B] hover:bg-[#fad3d3] transition">
+              ✕ Rejeitar
+            </button>
           </div>
 
           {openAjusteId === r.id && (
@@ -214,15 +230,15 @@ export const TabValidacao: React.FC<ValidacaoProps> = ({
               <textarea
                 value={ajusteTex[r.id] ?? ""}
                 onChange={(e) => setAjusteTex({ ...ajusteTex, [r.id]: e.target.value })}
-                placeholder="Ex.: inserir o link da evidência ou corrigir o tipo de produto."
+                placeholder="Ex.: inserir o link da evidência ou corrigir o tipo."
                 className={`${CLS.input} min-h-[80px]`}
               />
               {ajusteError && <p className="text-xs text-[#A13B3B] font-bold">{ajusteError}</p>}
               <div className="flex gap-2">
                 <button
                   onClick={() => {
-                    if (!ajusteTex[r.id]?.trim()) { setAjusteError("Escreva uma orientação para a equipe."); return; }
-                    onValidar(r.id, "Ajuste solicitado", ajusteTex[r.id]);
+                    if (!ajusteTex[r.id]?.trim()) { setAjusteError("Escreva uma orientação."); return; }
+                    onValidar(r.id, "ADJUSTMENT_NEEDED", ajusteTex[r.id]);
                   }}
                   className="px-3 py-1.5 text-xs bg-[#FFF4D6] text-[#8B6200] font-bold rounded-lg"
                 >Enviar</button>
@@ -234,6 +250,7 @@ export const TabValidacao: React.FC<ValidacaoProps> = ({
       ))}
     </div>
 
+    {/* Histórico */}
     <div className={`${CLS.card} p-5`}>
       <details>
         <summary className="cursor-pointer font-bold text-sm select-none">
@@ -243,19 +260,19 @@ export const TabValidacao: React.FC<ValidacaoProps> = ({
           {!historicoList.length ? (
             <p className="text-sm text-[#5A7184] text-center py-4">Ainda não há histórico.</p>
           ) : historicoList.map((r) => (
-            <div key={r.id} className="grid grid-cols-1 md:grid-cols-3 gap-2 border-b border-[#D6E2EE] pb-2 text-sm">
-              <div className="min-w-0">
+            <div key={r.id} className="grid grid-cols-1 md:grid-cols-4 gap-2 border-b border-[#D6E2EE] pb-2 text-sm items-start">
+              <div className="md:col-span-2 min-w-0">
                 <b className="break-words">{r.nome}</b>
                 <div className="text-xs text-[#5A7184] break-words">{r.equipe} · {r.indicador}</div>
-                {r.nota_validacao && <div className="text-xs p-1.5 bg-[#FFF8E7] text-[#795D13] rounded mt-1 break-words">{r.nota_validacao}</div>}
+                {r.notaValidacao && <div className="text-xs p-1.5 bg-[#FFF8E7] text-[#795D13] rounded mt-1 break-words">{r.notaValidacao}</div>}
               </div>
-              <div>
-                <span className={r.validado === "Sim" ? CLS.badgeSuccess : r.validado === "Não" ? CLS.badgeError : CLS.badgePending}>
-                  {r.validado}
-                </span>
+              <div className="flex flex-col gap-1">
+                <StatusBadge status={r.activityStatus} />
+                {r.syncedToSheets && <span className="text-xs text-[#1B7F5A]">✓ Sheets</span>}
               </div>
-              <div>
-                <button onClick={() => onValidar(r.id, "Pendente")} className={`${CLS.btnSecondary} text-xs`}>Reabrir</button>
+              <div className="text-xs text-[#5A7184]">
+                {r.validatedBy && <span>{r.validatedBy.name}</span>}
+                {r.validatedAt && <span className="block">{new Date(r.validatedAt).toLocaleDateString("pt-BR")}</span>}
               </div>
             </div>
           ))}
@@ -265,7 +282,7 @@ export const TabValidacao: React.FC<ValidacaoProps> = ({
   </div>
 );
 
-// ─── Tabela 2: Resultados por Equipe (detalhada) ──────────────────────────────
+// ─── Tabela 2: Resultados por Equipe ─────────────────────────────────────────
 const fmtBrl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const fmtNum = (v: number) => v.toLocaleString("pt-BR");
 
@@ -282,20 +299,25 @@ interface ResultadosEquipeProps {
   resumo: Record<string, Record<IndicadorKey, number>>;
   totais: Record<IndicadorKey, number>;
   onOpenModal: (key: IndicadorKey, equipe: string) => void;
+  onExportCsv: () => void;
+  onExportSheets: () => void;
+  sheetsStatus: "idle" | "loading" | "success" | "error";
+  sheetsError: string | null;
+  isSuperUser: boolean;
 }
 
-export const TabResultadosEquipe: React.FC<ResultadosEquipeProps> = ({ resumo, totais, onOpenModal }) => (
+export const TabResultadosEquipe: React.FC<ResultadosEquipeProps> = ({
+  resumo, totais, onOpenModal, onExportCsv,
+  onExportSheets, sheetsStatus, sheetsError, isSuperUser,
+}) => (
   <div className="space-y-4">
     {/* KPI cards */}
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
       {COLS.map(({ key, label, fmt }) => (
         <div key={key} className={`${CLS.card} p-4`}>
           <p className="text-xs text-[#5A7184] leading-snug mb-1">{label}</p>
-          <button
-            onClick={() => onOpenModal(key, "")}
-            disabled={!totais[key]}
-            className="text-xl font-extrabold text-[#1A4F7A] underline disabled:no-underline disabled:text-[#5A7184] break-words text-left"
-          >
+          <button onClick={() => onOpenModal(key, "")} disabled={!totais[key]}
+            className="text-xl font-extrabold text-[#1A4F7A] underline disabled:no-underline disabled:text-[#5A7184] break-words text-left">
             {fmt(totais[key])}
           </button>
         </div>
@@ -304,177 +326,55 @@ export const TabResultadosEquipe: React.FC<ResultadosEquipeProps> = ({ resumo, t
 
     {/* Tabela 2 */}
     <div className={`${CLS.card} p-5`}>
-      <h2 className="text-base font-bold text-[#1C2B3A] mb-4">
-        Tabela 2 — Síntese de Indicadores e principais resultados do CIATEN com detalhamento por núcleo, {new Date().getFullYear()}
-      </h2>
+      <div className="mb-4">
+        <h2 className="text-base font-bold text-[#1C2B3A]">
+          Tabela 2 — Síntese de Indicadores por Núcleo, {new Date().getFullYear()}
+        </h2>
+        <p className="text-xs text-[#5A7184] mt-0.5">* Apenas registros <b>Aprovados</b> são contabilizados.</p>
+      </div>
       <TableWrap>
         <Thead>
-          <Th className="min-w-[160px]">Equipe / Núcleo</Th>
-          {COLS.map((c) => <Th key={c.key} className="min-w-[120px]">{c.label}</Th>)}
+          <Th className="min-w-[200px]">Equipe / Núcleo</Th>
+          {COLS.map((c) => <Th key={c.key} className="min-w-[180px]">{c.label}</Th>)}
         </Thead>
         <tbody>
           {EQUIPES.map((eq, i) => (
             <tr key={eq} className={i % 2 === 0 ? "bg-white" : "bg-[#F5F7FA]"}>
-              <Td className="font-semibold text-[#1C2B3A] min-w-[160px]">{eq}</Td>
+              <Td className="font-semibold text-[#1C2B3A] min-w-[200px]">{eq}</Td>
               {COLS.map(({ key, fmt }) => (
-                <Td key={key} className="min-w-[120px]">
-                  <button
-                    onClick={() => onOpenModal(key, eq)}
-                    disabled={!resumo[eq]?.[key]}
-                    className="font-extrabold text-[#1A4F7A] underline disabled:no-underline disabled:text-[#5A7184] text-sm break-words text-left"
-                  >
+                <TdWrap key={key} className="min-w-[180px]">
+                  <button onClick={() => onOpenModal(key, eq)} disabled={!resumo[eq]?.[key]}
+                    className="font-extrabold text-[#1A4F7A] underline disabled:no-underline disabled:text-[#5A7184] text-sm break-words text-left">
                     {key === "recursos" ? fmtBrl(resumo[eq]?.[key] ?? 0) : fmtNum(resumo[eq]?.[key] ?? 0)}
                   </button>
-                </Td>
+                </TdWrap>
               ))}
             </tr>
           ))}
           <tr className="bg-[#1A4F7A] text-white font-bold">
-            <td className="p-3 text-sm rounded-bl-lg">Total</td>
-            {COLS.map(({ key, fmt }) => (
-              <td key={key} className="p-3 text-sm">{fmt(totais[key])}</td>
-            ))}
+            <td className="p-3 rounded-bl-lg text-sm">Total</td>
+            {COLS.map(({ key, fmt }) => <td key={key} className="p-3 text-sm">{fmt(totais[key])}</td>)}
           </tr>
         </tbody>
       </TableWrap>
     </div>
-  </div>
-);
 
-// ─── Tabela 1: Síntese consolidada CIATEN ────────────────────────────────────
-/**
- * Regras de cálculo (extraídas de domain.contabiliza):
- *   politicas   → status "Concluído" e validado "Sim"            → contagem
- *   publicacoes → status "Aceito" | "Publicado" e validado "Sim" → contagem
- *   cursos      → status "Concluído" e validado "Sim"            → contagem
- *   tecnologia  → status "Piloto" | "Implementado" e validado "Sim" → contagem
- *   divulgacao  → qualquer validado "Sim" com evidência          → soma de alcance
- *   recursos    → status "Aprovado" | "Recurso recebido" e validado "Sim" → soma de valor (BRL + USD separado)
- */
-const TABELA1_LINHAS: {
-  key: IndicadorKey;
-  indicador: string;
-  mede: string;
-  calculo: string;
-  formatResult: (totais: Record<IndicadorKey, number>, usd: number) => string;
-}[] = [
-  {
-    key: "politicas",
-    indicador: "Documentos de recomendação para políticas públicas",
-    mede: "Capacidade do CIATEN de produzir evidências aplicáveis à tomada de decisão e apoiar gestores com proposições claras.",
-    calculo: "Contagem total dos documentos com recomendações (mapas de evidências, relatórios técnicos, sínteses) que foram concluídos e validados.",
-    formatResult: (t) => `${t.politicas} documento${t.politicas !== 1 ? "s" : ""}`,
-  },
-  {
-    key: "publicacoes",
-    indicador: "Publicações científicas",
-    mede: "Produção de conhecimento técnico-científico vinculada aos núcleos e plataformas do CIATEN.",
-    calculo: "Soma de artigos, capítulos, livros, relatórios técnicos com ISSN/ISBN, pré-prints ou aceitações formais.",
-    formatResult: (t) => `${t.publicacoes} publicaç${t.publicacoes !== 1 ? "ões" : "ão"}`,
-  },
-  {
-    key: "cursos",
-    indicador: "Cursos, eventos e ações de formação",
-    mede: "Atividades formativas que qualificam profissionais e difundem conhecimento.",
-    calculo: "Número total de cursos, oficinas, workshops, webinários e eventos realizados e validados.",
-    formatResult: (t) => `${t.cursos} ação${t.cursos !== 1 ? "ões" : ""} formativa${t.cursos !== 1 ? "s" : ""}`,
-  },
-  {
-    key: "tecnologia",
-    indicador: "Projetos de inovação e desenvolvimento tecnológico",
-    mede: "Iniciativas que envolvem criação, prototipagem ou aprimoramento de tecnologias e soluções inovadoras.",
-    calculo: "Contagem de projetos registrados (softwares, dashboards, dispositivos, biotecnologias) em fase de piloto ou implementados.",
-    formatResult: (t) => `${t.tecnologia} projeto${t.tecnologia !== 1 ? "s" : ""} tecnológico${t.tecnologia !== 1 ? "s" : ""}`,
-  },
-  {
-    key: "divulgacao",
-    indicador: "Alcance e engajamento nas redes sociais",
-    mede: "Impacto e visibilidade do CIATEN na comunicação institucional.",
-    calculo: "Soma de visualizações, acessos e interações em todas as redes sociais informadas nos registros validados.",
-    formatResult: (t) => t.divulgacao > 0
-      ? t.divulgacao.toLocaleString("pt-BR") + " interações"
-      : "a ser calculado",
-  },
-  {
-    key: "recursos",
-    indicador: "Captação de recursos institucionais",
-    mede: "Capacidade de mobilização financeira para pesquisa, inovação, eventos e parcerias.",
-    calculo: "Soma de recursos captados via editais, convênios, cooperações e apoios institucionais aprovados.",
-    formatResult: (t, usd) => {
-      const brl = t.recursos > 0 ? t.recursos.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "";
-      const usdStr = usd > 0 ? `US$ ${usd.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "";
-      if (!brl && !usdStr) return "R$ 0,00";
-      return [brl, usdStr].filter(Boolean).join(" + ");
-    },
-  },
-];
-
-interface SinteseCiatenProps {
-  totais: Record<IndicadorKey, number>;
-  usdTotal: number;
-  onExportCsv: () => void;
-  onExportSheets: () => void;
-  sheetsStatus: "idle" | "loading" | "success" | "error";
-  sheetsError: string | null;
-  onClearData: () => void;
-}
-
-export const TabResultadosCiaten: React.FC<SinteseCiatenProps> = ({
-  totais, usdTotal, onExportCsv, onExportSheets, sheetsStatus, sheetsError, onClearData,
-}) => {
-  const ano = new Date().getFullYear();
-
-  return (
-    <div className="space-y-6">
-      {/* ── Tabela 1 ── */}
-      <div className={`${CLS.card} p-5`}>
-        <h2 className="text-base font-bold text-[#1C2B3A] mb-1">
-          Tabela 1 — Síntese de indicadores e principais resultados do CIATEN, {ano}
-        </h2>
-        <p className="text-xs text-[#5A7184] mb-4">
-          Fonte: Indicadores Estratégicos para Monitoramento e Avaliação das Ações do CIATEN.
-          Valores calculados dinamicamente a partir dos registros validados.
-        </p>
-        <TableWrap>
-          <Thead>
-            <Th className="min-w-[180px]">Indicador</Th>
-            <Th className="min-w-[200px]">O que mede</Th>
-            <Th className="min-w-[200px]">Como é calculado</Th>
-            <Th className="min-w-[140px]">{ano}</Th>
-          </Thead>
-          <tbody>
-            {TABELA1_LINHAS.map(({ key, indicador, mede, calculo, formatResult }, i) => (
-              <tr key={key} className={i % 2 === 0 ? "bg-white" : "bg-[#F5F7FA]"}>
-                <Td className="font-bold text-[#1C2B3A]">{indicador}</Td>
-                <Td className="text-[#5A7184]">{mede}</Td>
-                <Td className="text-[#5A7184]">{calculo}</Td>
-                <Td className="font-bold text-[#1A4F7A]">{formatResult(totais, usdTotal)}</Td>
-              </tr>
-            ))}
-          </tbody>
-        </TableWrap>
+    {/* Feedback Sheets */}
+    {sheetsStatus === "success" && (
+      <div className="border border-[#a3d9b8] bg-[#E7F6EF] text-[#1B7F5A] rounded-xl p-3 text-sm font-semibold">
+        ✓ Aba "Tabela 2" recriada com sucesso no Google Sheets.
       </div>
+    )}
+    {sheetsStatus === "error" && (
+      <div className="border border-[#f5c6c6] bg-[#FDEAEA] text-[#A13B3B] rounded-xl p-3 text-sm">
+        <b>Erro ao exportar:</b> {sheetsError}
+      </div>
+    )}
 
-      {/* ── Feedback de exportação Sheets ── */}
-      {sheetsStatus === "success" && (
-        <div className="border border-[#a3d9b8] bg-[#E7F6EF] text-[#1B7F5A] rounded-xl p-3 font-semibold text-sm">
-          ✓ Tabela 1 exportada com sucesso para o Google Sheets (aba "{process.env.NEXT_PUBLIC_TAB_TABELA1 ?? "Tabela1"}").
-        </div>
-      )}
-      {sheetsStatus === "error" && (
-        <div className="border border-[#f5c6c6] bg-[#FDEAEA] text-[#A13B3B] rounded-xl p-3 text-sm">
-          <b>Erro ao exportar para o Sheets:</b> {sheetsError}
-        </div>
-      )}
-
-      {/* ── Ações ── */}
-      <div className={`${CLS.card} p-4 flex flex-wrap gap-3 items-center`}>
-        {/* Exportar CSV */}
-        <button onClick={onExportCsv} className={CLS.btnGhost}>
-          ⬇ Baixar CSV
-        </button>
-
-        {/* Exportar para Google Sheets */}
+    {/* Ações */}
+    <div className={`${CLS.card} p-4 flex flex-wrap gap-3 items-center`}>
+      <button onClick={onExportCsv} className={CLS.btnGhost}>⬇ Baixar CSV</button>
+      {isSuperUser && (
         <button
           onClick={onExportSheets}
           disabled={sheetsStatus === "loading"}
@@ -485,15 +385,121 @@ export const TabResultadosCiaten: React.FC<SinteseCiatenProps> = ({
           )}
           {sheetsStatus === "loading" ? "Exportando…" : "↗ Exportar para Google Sheets"}
         </button>
+      )}
+    </div>
+  </div>
+);
 
-        <div className="flex-1" />
+// ─── Tabela 1: Síntese CIATEN ─────────────────────────────────────────────────
+const TABELA1_LINHAS: {
+  key: IndicadorKey; indicador: string; mede: string; calculo: string;
+  formatResult: (totais: Record<IndicadorKey, number>, usd: number) => string;
+}[] = [
+  { key: "politicas",   indicador: "Documentos de recomendação para políticas públicas",   mede: "Capacidade do CIATEN de produzir evidências aplicáveis à tomada de decisão.", calculo: "Contagem de documentos concluídos e validados.", formatResult: (t) => `${t.politicas} documento${t.politicas !== 1 ? "s" : ""}` },
+  { key: "publicacoes", indicador: "Publicações científicas",                              mede: "Produção de conhecimento técnico-científico.", calculo: "Soma de artigos, capítulos, livros, pré-prints e aceitações.", formatResult: (t) => `${t.publicacoes} publicaç${t.publicacoes !== 1 ? "ões" : "ão"}` },
+  { key: "cursos",      indicador: "Cursos, eventos e ações de formação",                  mede: "Atividades formativas que qualificam profissionais.", calculo: "Número total de cursos, oficinas, workshops e eventos realizados.", formatResult: (t) => `${t.cursos} ação${t.cursos !== 1 ? "ões" : ""} formativa${t.cursos !== 1 ? "s" : ""}` },
+  { key: "tecnologia",  indicador: "Projetos de inovação e desenvolvimento tecnológico",   mede: "Iniciativas de criação ou aprimoramento de tecnologias.", calculo: "Projetos em fase de piloto ou implementados.", formatResult: (t) => `${t.tecnologia} projeto${t.tecnologia !== 1 ? "s" : ""} tecnológico${t.tecnologia !== 1 ? "s" : ""}` },
+  { key: "divulgacao",  indicador: "Alcance e engajamento nas redes sociais",              mede: "Impacto e visibilidade do CIATEN na comunicação.", calculo: "Soma de visualizações, acessos e interações.", formatResult: (t) => t.divulgacao > 0 ? `${t.divulgacao.toLocaleString("pt-BR")} interações` : "a ser calculado" },
+  { key: "recursos",    indicador: "Captação de recursos institucionais",                  mede: "Capacidade de mobilização financeira.", calculo: "Soma de recursos aprovados via editais, convênios e cooperações.", formatResult: (t, usd) => { const brl = t.recursos > 0 ? t.recursos.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : ""; const u = usd > 0 ? `US$ ${usd.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : ""; return [brl, u].filter(Boolean).join(" + ") || "R$ 0,00"; } },
+];
 
-        <button
-          onClick={() => { if (confirm("Apagar todos os registros locais?")) onClearData(); }}
-          className="px-4 py-2.5 bg-white border border-[#D6E2EE] text-[#A13B3B] font-bold rounded-xl hover:bg-[#FDEAEA] transition text-sm"
-        >
-          Limpar dados locais
-        </button>
+interface SinteseCiatenProps {
+  totais: Record<IndicadorKey, number>;
+  usdTotal: number;
+  onExportCsv: () => void;           // CSV Tabela 1
+  onExportTabela2Csv: () => void;    // CSV Tabela 2
+  onExportRegistrosCsv: () => void;  // CSV Registros
+  onExportSheets: (target: "tabela1" | "tabela2" | "registros") => void;
+  sheetsExportStatus: Record<string, "idle" | "loading" | "success" | "error">;
+  sheetsExportError: Record<string, string | null>;
+  isSuperUser: boolean;
+  onClearData?: () => void;
+}
+
+const SheetsBtn: React.FC<{ label: string; status: "idle"|"loading"|"success"|"error"; onClick: () => void }> = ({ label, status, onClick }) => (
+  <button onClick={onClick} disabled={status === "loading"}
+    className="w-full px-3 py-2 bg-[#1A4F7A] text-white font-bold rounded-xl hover:bg-[#0F3254] transition disabled:opacity-50 flex items-center justify-center gap-2 text-sm">
+    {status === "loading" && <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />}
+    {status === "loading" ? "Exportando…" : `↗ ${label}`}
+  </button>
+);
+
+export const TabResultadosCiaten: React.FC<SinteseCiatenProps> = ({
+  totais, usdTotal, onExportCsv, onExportTabela2Csv, onExportRegistrosCsv,
+  onExportSheets, sheetsExportStatus, sheetsExportError, isSuperUser,
+}) => {
+  const ano = new Date().getFullYear();
+  const st  = (t: string) => sheetsExportStatus[t] ?? "idle";
+  const err = (t: string) => sheetsExportError[t] ?? null;
+
+  return (
+    <div className="space-y-6">
+      {/* Tabela 1 */}
+      <div className={`${CLS.card} p-5`}>
+        <h2 className="text-base font-bold text-[#1C2B3A] mb-1">
+          Tabela 1 — Síntese de indicadores e principais resultados do CIATEN, {ano}
+        </h2>
+        <p className="text-xs text-[#5A7184] mb-4">
+          Fonte: Indicadores Estratégicos para Monitoramento e Avaliação das Ações do CIATEN.
+          Calculado automaticamente a partir dos registros <b>aprovados</b>.
+        </p>
+        <TableWrap>
+          <Thead>
+            <Th className="min-w-[260px]">Indicador</Th>
+            <Th className="min-w-[240px]">O que mede</Th>
+            <Th className="min-w-[240px]">Como é calculado</Th>
+            <Th className="min-w-[160px]">{ano}</Th>
+          </Thead>
+          <tbody>
+            {TABELA1_LINHAS.map(({ key, indicador, mede, calculo, formatResult }, i) => (
+              <tr key={key} className={i % 2 === 0 ? "bg-white" : "bg-[#F5F7FA]"}>
+                <Td className="font-bold text-[#1C2B3A] min-w-[260px]">{indicador}</Td>
+                <TdWrap className="text-[#5A7184] min-w-[240px]">{mede}</TdWrap>
+                <TdWrap className="text-[#5A7184] min-w-[240px]">{calculo}</TdWrap>
+                <Td className="font-bold text-[#1A4F7A] min-w-[160px]">{formatResult(totais, usdTotal)}</Td>
+              </tr>
+            ))}
+          </tbody>
+        </TableWrap>
+      </div>
+
+      {/* Feedbacks */}
+      {(["tabela1","tabela2","registros"] as const).map((t) => (
+        <React.Fragment key={t}>
+          {st(t) === "success" && <div className="border border-[#a3d9b8] bg-[#E7F6EF] text-[#1B7F5A] rounded-xl p-3 text-sm font-semibold">✓ Aba "{t === "tabela1" ? "Tabela 1" : t === "tabela2" ? "Tabela 2" : "Registros"}" recriada com sucesso no Google Sheets.</div>}
+          {st(t) === "error"   && <div className="border border-[#f5c6c6] bg-[#FDEAEA] text-[#A13B3B] rounded-xl p-3 text-sm"><b>Erro "{t}":</b> {err(t)}</div>}
+        </React.Fragment>
+      ))}
+
+      {/* Ações de exportação */}
+      <div className={`${CLS.card} p-5 space-y-4`}>
+        <div>
+          <h3 className="text-sm font-bold text-[#1C2B3A] mb-1">Exportar dados</h3>
+          <p className="text-xs text-[#5A7184]">
+            CSV: download imediato com os totais calculados.
+            {isSuperUser && " Google Sheets: recria a aba do zero com dados atuais do banco de dados."}
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {/* Tabela 1 */}
+          <div className="border border-[#D6E2EE] rounded-xl p-4 space-y-3">
+            <div><p className="font-semibold text-sm text-[#1C2B3A]">Tabela 1</p><p className="text-xs text-[#5A7184]">Síntese consolidada por indicador</p></div>
+            <button onClick={onExportCsv} className="w-full px-3 py-2 bg-[#E8F1F8] text-[#1A4F7A] font-bold rounded-xl hover:bg-[#d4e5f3] transition text-sm">⬇ Baixar CSV</button>
+            {isSuperUser && <SheetsBtn label="Exportar para Sheets" status={st("tabela1")} onClick={() => onExportSheets("tabela1")} />}
+          </div>
+          {/* Tabela 2 */}
+          <div className="border border-[#D6E2EE] rounded-xl p-4 space-y-3">
+            <div><p className="font-semibold text-sm text-[#1C2B3A]">Tabela 2</p><p className="text-xs text-[#5A7184]">Registros aprovados por equipe × indicador</p></div>
+            <button onClick={onExportTabela2Csv} className="w-full px-3 py-2 bg-[#E8F1F8] text-[#1A4F7A] font-bold rounded-xl hover:bg-[#d4e5f3] transition text-sm">⬇ Baixar CSV</button>
+            {isSuperUser && <SheetsBtn label="Exportar para Sheets" status={st("tabela2")} onClick={() => onExportSheets("tabela2")} />}
+          </div>
+          {/* Registros */}
+          <div className="border border-[#D6E2EE] rounded-xl p-4 space-y-3">
+            <div><p className="font-semibold text-sm text-[#1C2B3A]">Registros</p><p className="text-xs text-[#5A7184]">Log completo de todos os registros</p></div>
+            <button onClick={onExportRegistrosCsv} className="w-full px-3 py-2 bg-[#E8F1F8] text-[#1A4F7A] font-bold rounded-xl hover:bg-[#d4e5f3] transition text-sm">⬇ Baixar CSV</button>
+            {isSuperUser && <SheetsBtn label="Exportar para Sheets" status={st("registros")} onClick={() => onExportSheets("registros")} />}
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -502,7 +508,7 @@ export const TabResultadosCiaten: React.FC<SinteseCiatenProps> = ({
 // ─── Modal de detalhamento ────────────────────────────────────────────────────
 interface ModalProps {
   modalData: { key: IndicadorKey; equipe: string } | null;
-  registrosModal: Registro[];
+  registrosModal: DbRegistro[];
   onClose: () => void;
 }
 
@@ -516,34 +522,29 @@ export const ModalDetalhes: React.FC<ModalProps> = ({ modalData, registrosModal,
             <h2 className="text-lg font-bold text-[#1C2B3A] break-words">{INDICADORES[modalData.key]}</h2>
             <p className="text-xs text-[#5A7184] mt-0.5">
               {modalData.equipe ? `${modalData.equipe} • ` : `CIATEN ${new Date().getFullYear()} • `}
-              {registrosModal.length} registro(s) contabilizado(s)
+              {registrosModal.length} registro(s) aprovados
             </p>
           </div>
           <button onClick={onClose} className={`${CLS.btnSecondary} text-sm shrink-0`}>Fechar</button>
         </div>
         <div className="space-y-2">
-          {!registrosModal.length ? (
-            <p className="text-center py-6 text-[#5A7184]">Nenhum registro contabilizado.</p>
-          ) : registrosModal.map((r) => (
-            <div key={r.id} className={`${CLS.cardInner} p-3 space-y-1`}>
-              <b className="block text-sm break-words">{r.nome}</b>
-              <div className="text-xs text-[#5A7184] flex flex-wrap gap-2">
-                <span>{r.equipe}</span>
-                {r.tipo && <span>• {r.tipo}</span>}
-                <span>• {r.status || "Publicado"}</span>
-                {r.valor_aprovado && (
-                  <span>• {Number(r.valor_aprovado).toLocaleString("pt-BR", { style: "currency", currency: r.moeda || "BRL" })}</span>
-                )}
-                {r.alcance && <span>• Alcance: {Number(r.alcance).toLocaleString("pt-BR")}</span>}
+          {!registrosModal.length
+            ? <p className="text-center py-6 text-[#5A7184]">Nenhum registro aprovado.</p>
+            : registrosModal.map((r) => (
+              <div key={r.id} className={`${CLS.cardInner} p-3 space-y-1`}>
+                <b className="block text-sm break-words">{r.nome}</b>
+                <div className="text-xs text-[#5A7184] flex flex-wrap gap-2">
+                  <span>{r.equipe}</span>
+                  {r.tipo && <span>• {r.tipo}</span>}
+                  <span>• {r.statusAtividade || "Publicado"}</span>
+                  {r.valorAprovado && <span>• {Number(r.valorAprovado).toLocaleString("pt-BR", { style: "currency", currency: r.moeda || "BRL" })}</span>}
+                  {r.alcance && <span>• Alcance: {Number(r.alcance).toLocaleString("pt-BR")}</span>}
+                </div>
+                {r.financiador && <p className="text-xs text-[#5A7184]">Financiador: {r.financiador}</p>}
+                {r.evidencia && <a href={r.evidencia} target="_blank" rel="noreferrer" className="text-xs text-[#1A4F7A] font-bold break-all">Abrir evidência ↗</a>}
               </div>
-              {r.financiador && <p className="text-xs text-[#5A7184]">Financiador: {r.financiador}</p>}
-              {r.evidencia && (
-                <a href={r.evidencia} target="_blank" rel="noreferrer" className="text-xs text-[#1A4F7A] font-bold break-all">
-                  Abrir evidência ↗
-                </a>
-              )}
-            </div>
-          ))}
+            ))
+          }
         </div>
       </div>
     </div>

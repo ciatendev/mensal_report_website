@@ -1,20 +1,46 @@
 "use client";
 /**
  * useAnnualReport.ts — Custom hook com todo o estado e lógica da página.
- * Zero JSX. Zero Tailwind.
+ *
+ * Dois conjuntos de dados independentes:
+ *   • `meusRegistros`  — registros do usuário logado (qualquer status)
+ *                        fonte: GET /api/annual-actions/records
+ *                        usado em: Meus Registros, Validação
+ *
+ *   • `aprovados`      — TODOS os registros aprovados (qualquer autor)
+ *                        fonte: GET /api/annual-actions/summary
+ *                        usado em: Por Equipe, Síntese CIATEN, Modal
+ *
+ * Isso resolve o bug em que o resumo/totais ficava zerado porque
+ * usuários comuns só viam os próprios registros.
  */
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import {
-  Registro, IndicadorKey, INDICADORES, EQUIPES,
-  buildRegistro, contabiliza,
+  DbRegistro, IndicadorKey, INDICADORES, EQUIPES, contabiliza,
 } from "../forms/domain";
 
 export type TabId = "registro" | "meus-registros" | "validacao" | "resultados-equipe" | "resultados-ciaten";
 export type SubmitStatus = "idle" | "loading" | "success" | "error";
 
+// Shape mínimo retornado pelo endpoint /summary (sem dados do autor)
+export type ApprovedRecord = Pick<DbRegistro,
+  "id" | "equipe" | "indicadorKey" | "indicador" | "nome" | "tipo" |
+  "statusAtividade" | "evidencia" | "alcance" | "valorAprovado" | "moeda" |
+  "financiador" | "ano" | "activityStatus" | "syncedToSheets"
+>;
+
 export function useAnnualReport() {
-  const [activeTab,      setActiveTab]      = useState<TabId>("registro");
-  const [registros,      setRegistros]      = useState<Registro[]>([]);
+  const [activeTab,     setActiveTab]     = useState<TabId>("registro");
+
+  // Meus registros (filtrado pelo back — só os do usuário logado)
+  const [meusRegistros, setMeusRegistros] = useState<DbRegistro[]>([]);
+  const [loadingMeus,   setLoadingMeus]   = useState(false);
+
+  // Todos os aprovados (para tabelas de resultado)
+  const [aprovados,     setAprovados]     = useState<ApprovedRecord[]>([]);
+  const [loadingAprov,  setLoadingAprov]  = useState(false);
+
+  // Formulário
   const [editingId,      setEditingId]      = useState<string | null>(null);
   const [equipeSel,      setEquipeSel]      = useState("");
   const [indicadorSel,   setIndicadorSel]   = useState<IndicadorKey | "">("");
@@ -29,14 +55,116 @@ export function useAnnualReport() {
   const [financiador,    setFinanciador]    = useState("");
   const [valorAprovado,  setValorAprovado]  = useState("");
   const [moeda,          setMoeda]          = useState("BRL");
-  const [filtroEquipe,   setFiltroEquipe]   = useState("");
-  const [ajusteTex,      setAjusteTex]      = useState<Record<string, string>>({});
-  const [openAjusteId,   setOpenAjusteId]   = useState<string | null>(null);
-  const [ajusteError,    setAjusteError]    = useState<string | null>(null);
-  const [modalData,      setModalData]      = useState<{ key: IndicadorKey; equipe: string } | null>(null);
-  const [submitStatus,   setSubmitStatus]   = useState<SubmitStatus>("idle");
-  const [submitError,    setSubmitError]    = useState<string | null>(null);
 
+  // UI
+  const [filtroEquipe,  setFiltroEquipe]  = useState("");
+  const [ajusteTex,     setAjusteTex]     = useState<Record<string, string>>({});
+  const [openAjusteId,  setOpenAjusteId]  = useState<string | null>(null);
+  const [ajusteError,   setAjusteError]   = useState<string | null>(null);
+  const [modalData,     setModalData]     = useState<{ key: IndicadorKey; equipe: string } | null>(null);
+  const [submitStatus,  setSubmitStatus]  = useState<SubmitStatus>("idle");
+  const [submitError,   setSubmitError]   = useState<string | null>(null);
+  const [sheetsStatus,  setSheetsStatus]  = useState<SubmitStatus>("idle");
+  const [sheetsError,   setSheetsError]   = useState<string | null>(null);
+
+  // ─── Fetch 1: meus registros (qualquer status, só do usuário) ────────────
+  const fetchMeus = useCallback(async () => {
+    setLoadingMeus(true);
+    try {
+      const res = await fetch("/api/annual-actions/records");
+      if (res.ok) setMeusRegistros(await res.json());
+    } catch (e) {
+      console.error("Erro ao carregar meus registros:", e);
+    } finally {
+      setLoadingMeus(false);
+    }
+  }, []);
+
+  // ─── Fetch 2: todos aprovados (para tabelas de resultado) ────────────────
+  const fetchAprovados = useCallback(async () => {
+    setLoadingAprov(true);
+    try {
+      const res = await fetch("/api/annual-actions/summary");
+      if (res.ok) setAprovados(await res.json());
+    } catch (e) {
+      console.error("Erro ao carregar aprovados:", e);
+    } finally {
+      setLoadingAprov(false);
+    }
+  }, []);
+
+  // Carga inicial
+  useEffect(() => {
+    fetchMeus();
+    fetchAprovados();
+  }, [fetchMeus, fetchAprovados]);
+
+  // Recarrega ao mudar de aba
+  useEffect(() => {
+    if (activeTab === "meus-registros" || activeTab === "validacao") fetchMeus();
+    if (activeTab === "resultados-equipe" || activeTab === "resultados-ciaten") fetchAprovados();
+  }, [activeTab, fetchMeus, fetchAprovados]);
+
+  // ─── Computed: listas para Meus Registros e Validação ────────────────────
+  const pendentesList = useMemo(
+    () => meusRegistros.filter((r) => r.activityStatus === "PENDING"),
+    [meusRegistros]
+  );
+  const historicoList = useMemo(
+    () => meusRegistros.filter((r) => r.activityStatus !== "PENDING").reverse(),
+    [meusRegistros]
+  );
+
+  // ─── Computed: resumo por equipe (usa `aprovados`) ────────────────────────
+  const resumo = useMemo(() => {
+    const out: Record<string, Record<IndicadorKey, number>> = {};
+    EQUIPES.forEach((e) => {
+      out[e] = { politicas: 0, publicacoes: 0, cursos: 0, tecnologia: 0, divulgacao: 0, recursos: 0 };
+    });
+    aprovados.forEach((r) => {
+      if (!out[r.equipe]) return;
+      // contabiliza usa activityStatus — aprovados já são APPROVED, mas ainda
+      // precisam satisfazer a regra do statusAtividade. Usamos cast para DbRegistro
+      // parcial — os campos necessários para contabiliza estão presentes.
+      if (!contabiliza(r as unknown as DbRegistro)) return;
+      if (r.indicadorKey === "divulgacao") {
+        out[r.equipe].divulgacao += Number(r.alcance ?? 0);
+      } else if (r.indicadorKey === "recursos" && r.moeda === "BRL") {
+        out[r.equipe].recursos += Number(r.valorAprovado ?? 0);
+      } else {
+        out[r.equipe][r.indicadorKey]++;
+      }
+    });
+    return out;
+  }, [aprovados]);
+
+  const totais = useMemo(() => {
+    const t: Record<IndicadorKey, number> = {
+      politicas: 0, publicacoes: 0, cursos: 0, tecnologia: 0, divulgacao: 0, recursos: 0,
+    };
+    Object.values(resumo).forEach((v) => {
+      (Object.keys(t) as IndicadorKey[]).forEach((k) => { t[k] += v[k] ?? 0; });
+    });
+    return t;
+  }, [resumo]);
+
+  const usdTotal = useMemo(
+    () => aprovados
+      .filter((r) => contabiliza(r as unknown as DbRegistro) && r.indicadorKey === "recursos" && r.moeda === "USD")
+      .reduce((a, r) => a + Number(r.valorAprovado ?? 0), 0),
+    [aprovados]
+  );
+
+  const registrosModal = useMemo(() => {
+    if (!modalData) return [];
+    return aprovados.filter((r) =>
+      contabiliza(r as unknown as DbRegistro) &&
+      r.indicadorKey === modalData.key &&
+      (!modalData.equipe || r.equipe === modalData.equipe)
+    ) as unknown as DbRegistro[];
+  }, [aprovados, modalData]);
+
+  // ─── Reset formulário ────────────────────────────────────────────────────
   const resetForm = useCallback(() => {
     setEditingId(null); setEquipeSel(""); setIndicadorSel(""); setNome("");
     setTipo(""); setStatus(""); setEvidencia(""); setDataRealizacao("");
@@ -44,52 +172,66 @@ export function useAnnualReport() {
     setValorAprovado(""); setMoeda("BRL"); setSubmitStatus("idle"); setSubmitError(null);
   }, []);
 
+  // ─── Preenche formulário para edição ─────────────────────────────────────
   const preencherEdicao = useCallback((id: string) => {
-    const r = registros.find((x) => x.id === id);
+    const r = meusRegistros.find((x) => x.id === id);
     if (!r) return;
     setEditingId(id); setActiveTab("registro");
-    setEquipeSel(r.equipe); setIndicadorSel(r.indicador_key);
-    setNome(r.nome); setTipo(r.tipo ?? ""); setStatus(r.status ?? "");
-    setEvidencia(r.evidencia ?? ""); setDataRealizacao(r.data_realizacao ?? "");
+    setEquipeSel(r.equipe); setIndicadorSel(r.indicadorKey);
+    setNome(r.nome); setTipo(r.tipo ?? ""); setStatus(r.statusAtividade ?? "");
+    setEvidencia(r.evidencia ?? ""); setDataRealizacao(r.dataRealizacao ?? "");
     setParticipantes(r.participantes ?? ""); setCanal(r.canal ?? "");
     setAlcance(r.alcance ?? ""); setFinanciador(r.financiador ?? "");
-    setValorAprovado(r.valor_aprovado ?? ""); setMoeda(r.moeda ?? "BRL");
+    setValorAprovado(r.valorAprovado ?? ""); setMoeda(r.moeda ?? "BRL");
     setSubmitStatus("idle"); setSubmitError(null);
     window.scrollTo({ top: 0, behavior: "smooth" });
-  }, [registros]);
+  }, [meusRegistros]);
 
+  // ─── Criar / editar registro ──────────────────────────────────────────────
   const handleSubmit = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     if (!indicadorSel || !equipeSel) return;
     setSubmitStatus("loading");
     setSubmitError(null);
 
-    const fields = { equipeSel, indicadorSel, nome, tipo, status, evidencia,
-      dataRealizacao, participantes, canal, alcance, financiador, valorAprovado, moeda };
-
-    let registro: Registro;
-    if (editingId) {
-      const existing = registros.find((r) => r.id === editingId)!;
-      registro = { ...existing, ...buildRegistro(fields), id: existing.id, timestamp: existing.timestamp, ultima_edicao: new Date().toISOString() };
-    } else {
-      registro = buildRegistro(fields);
-    }
-
     try {
-      const res = await fetch("/api/annual-actions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ registro, isEdit: !!editingId }),
-      });
+      let res: Response;
+      if (editingId) {
+        res = await fetch(`/api/annual-actions/records/${editingId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "edit",
+            nome, tipo, statusAtividade: status,
+            evidencia, dataRealizacao, participantes,
+            canal, alcance, financiador, valorAprovado, moeda,
+          }),
+        });
+      } else {
+        res = await fetch("/api/annual-actions/records", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            equipe: equipeSel,
+            indicadorKey: indicadorSel,
+            indicador: INDICADORES[indicadorSel as IndicadorKey],
+            nome,
+            ano: new Date().getFullYear(),
+            tipo: indicadorSel === "recursos" ? "Captação de recursos" : tipo,
+            statusAtividade: indicadorSel === "divulgacao" ? "Publicado" : status,
+            evidencia, dataRealizacao, participantes,
+            canal, alcance, financiador, valorAprovado,
+            moeda: moeda || "BRL",
+          }),
+        });
+      }
+
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error ?? `HTTP ${res.status}`);
       }
-      if (editingId) {
-        setRegistros((prev) => prev.map((r) => (r.id === editingId ? registro : r)));
-      } else {
-        setRegistros((prev) => [...prev, registro]);
-      }
+
+      await fetchMeus();
       setSubmitStatus("success");
       resetForm();
     } catch (err) {
@@ -97,54 +239,36 @@ export function useAnnualReport() {
       setSubmitError(err instanceof Error ? err.message : "Erro desconhecido.");
     }
   }, [editingId, equipeSel, indicadorSel, nome, tipo, status, evidencia,
-      dataRealizacao, participantes, canal, alcance, financiador, valorAprovado, moeda, registros, resetForm]);
+      dataRealizacao, participantes, canal, alcance, financiador, valorAprovado,
+      moeda, resetForm, fetchMeus]);
 
-  const validarRegistro = useCallback((id: string, statusVal: Registro["validado"], nota = "") => {
-    setRegistros((prev) => prev.map((r) =>
-      r.id === id ? { ...r, validado: statusVal, nota_validacao: nota, data_validacao: new Date().toISOString() } : r
-    ));
+  // ─── Validar (SUPER_USER) — após validar recarrega AMBAS as fontes ───────
+  const validarRegistro = useCallback(async (
+    id: string,
+    novoStatus: "APPROVED" | "REJECTED" | "ADJUSTMENT_NEEDED",
+    nota = ""
+  ) => {
+    const res = await fetch(`/api/annual-actions/records/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "validate", activityStatus: novoStatus, notaValidacao: nota }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      console.error("Erro ao validar:", data.error);
+      return;
+    }
     setOpenAjusteId(null);
     setAjusteError(null);
-  }, []);
+    // Recarrega ambas as fontes para que tabelas e meus registros fiquem em sincronia
+    await Promise.all([fetchMeus(), fetchAprovados()]);
+  }, [fetchMeus, fetchAprovados]);
 
-  const resumo = useMemo(() => {
-    const out: Record<string, Record<IndicadorKey, number>> = {};
-    EQUIPES.forEach((e) => { out[e] = { politicas: 0, publicacoes: 0, cursos: 0, tecnologia: 0, divulgacao: 0, recursos: 0 }; });
-    registros.forEach((r) => {
-      if (!out[r.equipe] || !contabiliza(r)) return;
-      if (r.indicador_key === "divulgacao") out[r.equipe].divulgacao += Number(r.alcance ?? 0);
-      else if (r.indicador_key === "recursos" && r.moeda === "BRL") out[r.equipe].recursos += Number(r.valor_aprovado ?? 0);
-      else out[r.equipe][r.indicador_key]++;
-    });
-    return out;
-  }, [registros]);
-
-  const totais = useMemo(() => {
-    const t: Record<IndicadorKey, number> = { politicas: 0, publicacoes: 0, cursos: 0, tecnologia: 0, divulgacao: 0, recursos: 0 };
-    Object.values(resumo).forEach((v) => { (Object.keys(t) as IndicadorKey[]).forEach((k) => { t[k] += v[k] ?? 0; }); });
-    return t;
-  }, [resumo]);
-
-  const usdTotal = useMemo(() =>
-    registros.filter((r) => contabiliza(r) && r.indicador_key === "recursos" && r.moeda === "USD")
-             .reduce((a, r) => a + Number(r.valor_aprovado ?? 0), 0), [registros]);
-
-  const registrosModal = useMemo(() => {
-    if (!modalData) return [];
-    return registros.filter((r) => contabiliza(r) && r.indicador_key === modalData.key && (!modalData.equipe || r.equipe === modalData.equipe));
-  }, [registros, modalData]);
-
-  const pendentesList = useMemo(() => registros.filter((r) => !r.validado || r.validado === "Pendente").reverse(), [registros]);
-  const historicoList = useMemo(() => registros.filter((r) => r.validado && r.validado !== "Pendente").reverse(), [registros]);
-
-  // ─── Tabela 1: linhas estáticas + valores calculados ─────────────────────
-  // Espelha TABELA1_LINHAS de Tabs.tsx mas em formato puro (sem JSX)
-  // para que o hook possa gerar CSV e gravar no Sheets sem depender do componente.
+  // ─── Tabela 1: linhas calculadas ─────────────────────────────────────────
   const tabela1Rows = useMemo(() => {
     const ano = new Date().getFullYear();
     const fmtBrl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-
-    const formatResult = (key: IndicadorKey): string => {
+    const fmt = (key: IndicadorKey): string => {
       switch (key) {
         case "politicas":   return `${totais.politicas} documento${totais.politicas !== 1 ? "s" : ""}`;
         case "publicacoes": return `${totais.publicacoes} publicaç${totais.publicacoes !== 1 ? "ões" : "ão"}`;
@@ -153,42 +277,101 @@ export function useAnnualReport() {
         case "divulgacao":  return totais.divulgacao > 0 ? `${totais.divulgacao.toLocaleString("pt-BR")} interações` : "a ser calculado";
         case "recursos": {
           const brl = totais.recursos > 0 ? fmtBrl(totais.recursos) : "";
-          const usdStr = usdTotal > 0 ? `US$ ${usdTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "";
-          return [brl, usdStr].filter(Boolean).join(" + ") || "R$ 0,00";
+          const usd = usdTotal > 0 ? `US$ ${usdTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "";
+          return [brl, usd].filter(Boolean).join(" + ") || "R$ 0,00";
         }
       }
     };
-
     return [
-      { indicador: "Documentos de recomendação para políticas públicas",    mede: "Capacidade do CIATEN de produzir evidências aplicáveis à tomada de decisão e apoiar gestores com proposições claras.",          calculo: "Contagem total dos documentos com recomendações (mapas de evidências, relatórios técnicos, sínteses) que foram concluídos e validados.", resultado: formatResult("politicas"),   ano: String(ano) },
-      { indicador: "Publicações científicas",                               mede: "Produção de conhecimento técnico-científico vinculada aos núcleos e plataformas do CIATEN.",                                        calculo: "Soma de artigos, capítulos, livros, relatórios técnicos com ISSN/ISBN, pré-prints ou aceitações formais.",                              resultado: formatResult("publicacoes"), ano: String(ano) },
-      { indicador: "Cursos, eventos e ações de formação",                   mede: "Atividades formativas que qualificam profissionais e difundem conhecimento.",                                                        calculo: "Número total de cursos, oficinas, workshops, webinários e eventos realizados e validados.",                                              resultado: formatResult("cursos"),       ano: String(ano) },
-      { indicador: "Projetos de inovação e desenvolvimento tecnológico",    mede: "Iniciativas que envolvem criação, prototipagem ou aprimoramento de tecnologias e soluções inovadoras.",                              calculo: "Contagem de projetos registrados (softwares, dashboards, dispositivos, biotecnologias) em fase de piloto ou implementados.",              resultado: formatResult("tecnologia"),   ano: String(ano) },
-      { indicador: "Alcance e engajamento nas redes sociais",               mede: "Impacto e visibilidade do CIATEN na comunicação institucional.",                                                                      calculo: "Soma de visualizações, acessos e interações em todas as redes sociais informadas nos registros validados.",                               resultado: formatResult("divulgacao"),   ano: String(ano) },
-      { indicador: "Captação de recursos institucionais",                   mede: "Capacidade de mobilização financeira para pesquisa, inovação, eventos e parcerias.",                                                 calculo: "Soma de recursos captados via editais, convênios, cooperações e apoios institucionais aprovados.",                                         resultado: formatResult("recursos"),     ano: String(ano) },
+      { indicador: "Documentos de recomendação para políticas públicas",   mede: "Capacidade do CIATEN de produzir evidências aplicáveis à tomada de decisão.", calculo: "Contagem de documentos concluídos e validados.",                                         resultado: fmt("politicas"),   ano: String(ano) },
+      { indicador: "Publicações científicas",                              mede: "Produção de conhecimento técnico-científico.",                                  calculo: "Soma de artigos, capítulos, livros, pré-prints e aceitações.",                          resultado: fmt("publicacoes"), ano: String(ano) },
+      { indicador: "Cursos, eventos e ações de formação",                  mede: "Atividades formativas que qualificam profissionais.",                           calculo: "Número total de cursos, oficinas, workshops, webinários e eventos realizados.",         resultado: fmt("cursos"),       ano: String(ano) },
+      { indicador: "Projetos de inovação e desenvolvimento tecnológico",   mede: "Iniciativas de criação ou aprimoramento de tecnologias.",                       calculo: "Projetos em fase de piloto ou implementados.",                                         resultado: fmt("tecnologia"),   ano: String(ano) },
+      { indicador: "Alcance e engajamento nas redes sociais",              mede: "Impacto e visibilidade do CIATEN na comunicação.",                              calculo: "Soma de visualizações, acessos e interações em todas as redes.",                        resultado: fmt("divulgacao"),   ano: String(ano) },
+      { indicador: "Captação de recursos institucionais",                  mede: "Capacidade de mobilização financeira.",                                         calculo: "Soma de recursos aprovados via editais, convênios e cooperações.",                      resultado: fmt("recursos"),     ano: String(ano) },
     ];
   }, [totais, usdTotal]);
 
-  // ─── Exportar CSV da Tabela 1 ────────────────────────────────────────────
+  // ─── Exportar CSV — Tabela 1 ──────────────────────────────────────────────
   const exportTabela1Csv = useCallback(() => {
     const ano = new Date().getFullYear();
     const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const header = ["Indicador", "O que mede", "Como é calculado", String(ano)];
-    const rows = tabela1Rows.map((r) => [r.indicador, r.mede, r.calculo, r.resultado]);
-    const csv = [header.map(q).join(","), ...rows.map((r) => r.map(q).join(","))].join("\n");
-    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    const a = Object.assign(document.createElement("a"), {
-      href: url,
-      download: `ciaten_tabela1_${ano}.csv`,
-    });
-    a.click();
+    const rows   = tabela1Rows.map((r) => [r.indicador, r.mede, r.calculo, r.resultado]);
+    const csv    = [header.map(q).join(","), ...rows.map((r) => r.map(q).join(","))].join("\n");
+    const url    = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    Object.assign(document.createElement("a"), { href: url, download: `ciaten_tabela1_${ano}.csv` }).click();
     URL.revokeObjectURL(url);
   }, [tabela1Rows]);
 
-  // ─── Estado de exportação para o Sheets ──────────────────────────────────
-  const [sheetsStatus, setSheetsStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [sheetsError,  setSheetsError]  = useState<string | null>(null);
+  // ─── Exportar CSV — Tabela 2 (Por Equipe) ────────────────────────────────
+  const exportTabela2Csv = useCallback(() => {
+    const ano  = new Date().getFullYear();
+    const q    = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const fmtBrl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+    const cols = ["Equipe / Núcleo", "Doc. Políticas", "Publicações", "Cursos/Eventos", "Tecnologias", "Alcance", "Recursos BRL"];
+    const rows = (EQUIPES as readonly string[]).map((eq) => [
+      eq,
+      resumo[eq]?.politicas   ?? 0,
+      resumo[eq]?.publicacoes ?? 0,
+      resumo[eq]?.cursos      ?? 0,
+      resumo[eq]?.tecnologia  ?? 0,
+      resumo[eq]?.divulgacao  ?? 0,
+      fmtBrl(resumo[eq]?.recursos ?? 0),
+    ]);
+    const totalRow = [
+      "Total", totais.politicas, totais.publicacoes, totais.cursos,
+      totais.tecnologia, totais.divulgacao, fmtBrl(totais.recursos),
+    ];
+    const csv = [
+      cols.map(q).join(","),
+      ...rows.map((r) => r.map(q).join(",")),
+      totalRow.map(q).join(","),
+    ].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    Object.assign(document.createElement("a"), { href: url, download: `ciaten_tabela2_equipes_${ano}.csv` }).click();
+    URL.revokeObjectURL(url);
+  }, [resumo, totais]);
 
+  // ─── Exportar CSV — Registros (log completo) ────────────────────────────────
+  const exportRegistrosCsv = useCallback(() => {
+    if (!meusRegistros.length && !aprovados.length) return;
+    // SUPER_USER exporta meusRegistros que já contem todos; usuário comum exporta os seus
+    const fonte = meusRegistros;
+    const ano = new Date().getFullYear();
+    const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`
+    const cols = [
+      "ID","Data/Hora","Ano","Status","Equipe","Indicador (chave)","Indicador",
+      "Nome","Tipo","Situação","Evidência","Data realização","Participantes",
+      "Canal","Alcance","Financiador","Valor aprovado","Moeda",
+    ];
+    const rows = fonte.map(r => [
+      r.id,
+      new Date(r.createdAt).toLocaleString("pt-BR"),
+      String(r.ano),
+      r.activityStatus,
+      r.equipe,
+      r.indicadorKey,
+      r.indicador,
+      r.nome,
+      r.tipo ?? "",
+      r.statusAtividade ?? "",
+      r.evidencia ?? "",
+      r.dataRealizacao ?? "",
+      r.participantes ?? "",
+      r.canal ?? "",
+      r.alcance ?? "",
+      r.financiador ?? "",
+      r.valorAprovado ?? "",
+      r.moeda ?? "",
+    ]);
+    const csv = [cols.map(q).join(","), ...rows.map(r => r.map(q).join(","))].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    Object.assign(document.createElement("a"), { href: url, download: `ciaten_registros_${ano}.csv` }).click();
+    URL.revokeObjectURL(url);
+  }, [meusRegistros, aprovados]);
+
+  // ─── Exportar Tabela 1 para Google Sheets ────────────────────────────────
   const exportTabela1ToSheets = useCallback(async () => {
     setSheetsStatus("loading");
     setSheetsError(null);
@@ -199,8 +382,8 @@ export function useAnnualReport() {
         body: JSON.stringify({ rows: tabela1Rows, ano: new Date().getFullYear() }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.error ?? `HTTP ${res.status}`);
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? `HTTP ${res.status}`);
       }
       setSheetsStatus("success");
       setTimeout(() => setSheetsStatus("idle"), 4000);
@@ -210,18 +393,76 @@ export function useAnnualReport() {
     }
   }, [tabela1Rows]);
 
+  // ─── Retorno público ──────────────────────────────────────────────────────
+  // ─── Tipo dos estados de exportação Sheets (por target) ──────────────────
+  const [sheetsExportStatus, setSheetsExportStatus] = useState<Record<string, SubmitStatus>>({});
+  const [sheetsExportError,  setSheetsExportError]  = useState<Record<string, string | null>>({});
+
+  const exportToSheets = useCallback(async (target: "tabela1" | "tabela2" | "registros") => {
+    setSheetsExportStatus((prev) => ({ ...prev, [target]: "loading" }));
+    setSheetsExportError((prev) => ({ ...prev, [target]: null }));
+    try {
+      const res = await fetch("/api/annual-actions/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target }),
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        throw new Error(d.error ?? `HTTP ${res.status}`);
+      }
+      setSheetsExportStatus((prev) => ({ ...prev, [target]: "success" }));
+      setTimeout(() => setSheetsExportStatus((prev) => ({ ...prev, [target]: "idle" })), 5000);
+    } catch (err) {
+      setSheetsExportStatus((prev) => ({ ...prev, [target]: "error" }));
+      setSheetsExportError((prev) => ({ ...prev, [target]: err instanceof Error ? err.message : "Erro desconhecido." }));
+    }
+  }, []);
+
+
   return {
-    activeTab, setActiveTab, registros, setRegistros,
-    editingId, equipeSel, setEquipeSel, indicadorSel, setIndicadorSel,
-    nome, setNome, tipo, setTipo, status, setStatus,
-    evidencia, setEvidencia, dataRealizacao, setDataRealizacao,
-    participantes, setParticipantes, canal, setCanal, alcance, setAlcance,
-    financiador, setFinanciador, valorAprovado, setValorAprovado, moeda, setMoeda,
-    filtroEquipe, setFiltroEquipe, ajusteTex, setAjusteTex,
-    openAjusteId, setOpenAjusteId, ajusteError, setAjusteError,
-    modalData, setModalData, submitStatus, submitError,
+    activeTab, setActiveTab,
+    // Meus registros
+    registros: meusRegistros,          // alias para compatibilidade
+    meusRegistros,
+    loadingData: loadingMeus,
+    pendentesList,
+    historicoList,
+    // Aprovados (tabelas de resultado)
+    aprovados,
+    loadingAprov,
+    resumo, totais, usdTotal,
+    registrosModal,
+    tabela1Rows,
+    // Formulário
+    editingId,
+    equipeSel, setEquipeSel,
+    indicadorSel, setIndicadorSel,
+    nome, setNome,
+    tipo, setTipo,
+    status, setStatus,
+    evidencia, setEvidencia,
+    dataRealizacao, setDataRealizacao,
+    participantes, setParticipantes,
+    canal, setCanal,
+    alcance, setAlcance,
+    financiador, setFinanciador,
+    valorAprovado, setValorAprovado,
+    moeda, setMoeda,
+    submitStatus, submitError,
+    // Ações
     resetForm, preencherEdicao, handleSubmit, validarRegistro,
-    exportTabela1Csv, exportTabela1ToSheets, sheetsStatus, sheetsError,
-    resumo, totais, usdTotal, registrosModal, pendentesList, historicoList,
+    fetchMeus, fetchAprovados,
+    // Validação UI
+    filtroEquipe, setFiltroEquipe,
+    ajusteTex, setAjusteTex,
+    openAjusteId, setOpenAjusteId,
+    ajusteError, setAjusteError,
+    modalData, setModalData,
+    // Exports
+    exportTabela1Csv, exportTabela2Csv, exportRegistrosCsv, exportTabela1ToSheets,
+    sheetsStatus, sheetsError,
+    // Exportações unificadas para Sheets (via /api/annual-actions/export)
+    exportToSheets, sheetsExportStatus, sheetsExportError,
   };
 }

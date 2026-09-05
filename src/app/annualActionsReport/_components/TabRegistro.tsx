@@ -54,8 +54,15 @@ export const TabRegistro: React.FC<Props> = (p) => {
       )}
 
       {p.submitStatus === "success" && (
-        <div className="border border-[#a3d9b8] bg-[#E7F6EF] text-[#1B7F5A] rounded-xl p-3 font-semibold">
-          ✓ Registro salvo com sucesso na planilha do Google Sheets.
+        <div className="border-2 border-[#1B7F5A] bg-[#E7F6EF] text-[#1B7F5A] rounded-xl p-4 font-semibold flex items-start gap-3">
+          <span className="text-2xl shrink-0">✅</span>
+          <div>
+            <p className="font-bold">Registro enviado com sucesso!</p>
+            <p className="text-sm font-normal mt-0.5">
+              Seu registro foi salvo e está aguardando validação da coordenação.
+              Você receberá um e-mail quando ele for analisado.
+            </p>
+          </div>
         </div>
       )}
       {p.submitStatus === "error" && (

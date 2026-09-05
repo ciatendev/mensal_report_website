@@ -30,7 +30,7 @@ export default async function DashboardPage() {
               </Link>
             )}
             <Link href="/menuServicePage" className="text-sm text-[#5A7184] hover:text-[#1A4F7A] transition-colors">
-              ← Menu
+              Menu
             </Link>
             <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
               <button className="text-sm font-semibold text-[#A13B3B] hover:underline">Sair</button>

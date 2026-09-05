@@ -7,7 +7,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <header className="bg-[#1A4F7A] text-white sticky top-0 z-10 shadow-md">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <img src="/ciaten-logo.png" alt="CIATEN" className="h-8 w-8 object-contain brightness-0 invert" />
             <Link href="/admin/templates" className="font-bold text-white hover:text-[#E8F1F8] transition-colors">
               Painel Admin
             </Link>

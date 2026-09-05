@@ -11,7 +11,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 // ─── Config ───────────────────────────────────────────────────────────────────
-const TAB_TABELA = process.env.GOOGLE_SHEETS_TAB_TABELA ?? "Tabela";
+const TAB_TABELA = process.env.GOOGLE_SHEETS_TAB_TABELA ?? "Tabela2";
 const TAB_LOG    = process.env.GOOGLE_SHEETS_TAB_LOG    ?? "Registros";
 
 const EQUIPE_ROW: Record<string, number> = {

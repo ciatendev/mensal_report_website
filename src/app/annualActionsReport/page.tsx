@@ -1,22 +1,18 @@
 "use client";
-/**
- * page.tsx — Orquestrador da página annualActionsReport.
- */
-import { signOut } from "next-auth/react";
+import { signOut, useSession } from "next-auth/react";
 import { useAnnualReport } from "./_hooks/useAnnualReport";
 import { PageHeader } from "./_components/PageHeader";
 import { TabRegistro } from "./_components/TabRegistro";
 import {
-  TabMeusRegistros,
-  TabValidacao,
-  TabResultadosEquipe,
-  TabResultadosCiaten,
-  ModalDetalhes,
+  TabMeusRegistros, TabValidacao, TabResultadosEquipe,
+  TabResultadosCiaten, ModalDetalhes,
 } from "./_components/Tabs";
 import { IndicadorKey } from "./forms/domain";
 
 export default function AnnualActionsReportPage() {
   const r = useAnnualReport();
+  const { data: session } = useSession();
+  const isSuperUser = session?.user?.role === "SUPER_USER";
 
   return (
     <div className="min-h-screen bg-[#F5F7FA] font-sans text-[#1C2B3A]">
@@ -52,17 +48,19 @@ export default function AnnualActionsReportPage() {
 
         {r.activeTab === "meus-registros" && (
           <TabMeusRegistros
-            registros={r.registros}
+            registros={r.meusRegistros}
+            loadingData={r.loadingData}
             filtroEquipe={r.filtroEquipe}
             setFiltroEquipe={r.setFiltroEquipe}
             onEditar={r.preencherEdicao}
           />
         )}
 
-        {r.activeTab === "validacao" && (
+        {r.activeTab === "validacao" && isSuperUser && (
           <TabValidacao
             pendentesList={r.pendentesList}
             historicoList={r.historicoList}
+            loadingData={r.loadingData}
             openAjusteId={r.openAjusteId}
             setOpenAjusteId={r.setOpenAjusteId}
             ajusteTex={r.ajusteTex}
@@ -78,6 +76,11 @@ export default function AnnualActionsReportPage() {
             resumo={r.resumo}
             totais={r.totais}
             onOpenModal={(key: IndicadorKey, equipe: string) => r.setModalData({ key, equipe })}
+            onExportCsv={r.exportTabela2Csv}
+            onExportSheets={() => r.exportToSheets("tabela2")}
+            sheetsStatus={r.sheetsExportStatus["tabela2"] ?? "idle"}
+            sheetsError={r.sheetsExportError["tabela2"] ?? null}
+            isSuperUser={isSuperUser}
           />
         )}
 
@@ -86,10 +89,12 @@ export default function AnnualActionsReportPage() {
             totais={r.totais}
             usdTotal={r.usdTotal}
             onExportCsv={r.exportTabela1Csv}
-            onExportSheets={r.exportTabela1ToSheets}
-            sheetsStatus={r.sheetsStatus}
-            sheetsError={r.sheetsError}
-            onClearData={() => r.setRegistros([])}
+            onExportTabela2Csv={r.exportTabela2Csv}
+            onExportRegistrosCsv={r.exportRegistrosCsv}
+            onExportSheets={r.exportToSheets}
+            sheetsExportStatus={r.sheetsExportStatus}
+            sheetsExportError={r.sheetsExportError}
+            isSuperUser={isSuperUser}
           />
         )}
 

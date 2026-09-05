@@ -1,10 +1,14 @@
 /**
  * domain.ts — Lógica de domínio pura da página annualActionsReport.
  * Zero JSX, zero React. Tipos, constantes e helpers de negócio.
+ *
+ * DbRegistro: shape que vem da API (banco de dados via Prisma).
+ * Os campos refletem ActivityRecord + relações include.
  */
 
 // ─── Tipos ───────────────────────────────────────────────────────────────────
 export type ValidacaoStatus = "Pendente" | "Sim" | "Não" | "Ajuste solicitado";
+export type ActivityStatus  = "PENDING" | "APPROVED" | "REJECTED" | "ADJUSTMENT_NEEDED";
 
 export type IndicadorKey =
   | "politicas"
@@ -14,29 +18,40 @@ export type IndicadorKey =
   | "divulgacao"
   | "recursos";
 
-export type Registro = {
-  id: string;
-  timestamp: string;
-  ano: number;
-  equipe: string;
-  indicador_key: IndicadorKey;
-  indicador: string;
-  nome: string;
-  tipo?: string;
-  status?: string;
-  evidencia?: string;
-  data_realizacao?: string;
-  participantes?: string;
-  canal?: string;
-  alcance?: string;
-  financiador?: string;
-  valor_aprovado?: string;
-  moeda?: string;
-  validado: ValidacaoStatus;
-  nota_validacao?: string;
-  data_validacao?: string;
-  ultima_edicao?: string;
+/** Shape do registro retornado pela API (DB). */
+export type DbRegistro = {
+  id:              string;
+  authorId:        string;
+  ano:             number;
+  equipe:          string;
+  indicadorKey:    IndicadorKey;
+  indicador:       string;
+  nome:            string;
+  tipo?:           string | null;
+  statusAtividade?:string | null;
+  evidencia?:      string | null;
+  dataRealizacao?: string | null;
+  participantes?:  string | null;
+  canal?:          string | null;
+  alcance?:        string | null;
+  financiador?:    string | null;
+  valorAprovado?:  string | null;
+  moeda?:          string | null;
+  activityStatus:  ActivityStatus;
+  notaValidacao?:  string | null;
+  validatedById?:  string | null;
+  validatedAt?:    string | null;
+  syncedToSheets:  boolean;
+  syncedAt?:       string | null;
+  createdAt:       string;
+  updatedAt:       string;
+  ultimaEdicao?:   string | null;
+  author:          { id: string; name: string | null; email: string };
+  validatedBy?:    { id: string; name: string | null } | null;
 };
+
+/** Alias de compatibilidade — o hook usa DbRegistro diretamente agora. */
+export type Registro = DbRegistro;
 
 // ─── Constantes de domínio ───────────────────────────────────────────────────
 export const EQUIPES = [
@@ -90,15 +105,8 @@ export const STATUSES: Record<IndicadorKey, string[]> = {
 };
 
 export const CANAIS = [
-  "Instagram CIATEN",
-  "Instagram parceiro",
-  "YouTube",
-  "Site",
-  "TV",
-  "Rádio",
-  "Podcast",
-  "Imprensa escrita/digital",
-  "Outro",
+  "Instagram CIATEN", "Instagram parceiro", "YouTube", "Site",
+  "TV", "Rádio", "Podcast", "Imprensa escrita/digital", "Outro",
 ] as const;
 
 // ─── Estado inicial do formulário ────────────────────────────────────────────
@@ -108,7 +116,7 @@ export const INITIAL_FORM_STATE = {
   indicadorSel:   "" as IndicadorKey | "",
   nome:           "",
   tipo:           "",
-  status:         "",
+  statusAtividade:"",
   evidencia:      "",
   dataRealizacao: "",
   participantes:  "",
@@ -118,41 +126,29 @@ export const INITIAL_FORM_STATE = {
   valorAprovado:  "",
   moeda:          "BRL",
 };
-
 export type FormState = typeof INITIAL_FORM_STATE;
 
 // ─── Helpers de negócio ──────────────────────────────────────────────────────
-export function contabiliza(r: Registro): number {
-  if (r.validado !== "Sim" || !r.evidencia) return 0;
-  const { indicador_key: k, status: s } = r;
-  if (k === "politicas" || k === "cursos") return s === "Concluído" ? 1 : 0;
+
+/** Mapeia ActivityStatus para o rótulo visual. */
+export const STATUS_LABEL: Record<ActivityStatus, string> = {
+  PENDING:           "Pendente",
+  APPROVED:          "Aprovado",
+  REJECTED:          "Não contabilizado",
+  ADJUSTMENT_NEEDED: "Ajuste solicitado",
+};
+
+/**
+ * Retorna 1 se o registro deve ser contabilizado nos totais.
+ * Só registros APPROVED são contabilizados.
+ */
+export function contabiliza(r: DbRegistro): number {
+  if (r.activityStatus !== "APPROVED" || !r.evidencia) return 0;
+  const { indicadorKey: k, statusAtividade: s } = r;
+  if (k === "politicas" || k === "cursos")  return s === "Concluído" ? 1 : 0;
   if (k === "publicacoes") return ["Aceito", "Publicado"].includes(s ?? "") ? 1 : 0;
   if (k === "tecnologia")  return ["Piloto", "Implementado"].includes(s ?? "") ? 1 : 0;
   if (k === "divulgacao")  return 1;
   if (k === "recursos")    return ["Aprovado", "Recurso recebido"].includes(s ?? "") ? 1 : 0;
   return 0;
-}
-
-export function buildRegistro(fields: Omit<FormState, "editingId">): Registro {
-  const key = fields.indicadorSel as IndicadorKey;
-  return {
-    id:              Date.now().toString(),
-    timestamp:       new Date().toISOString(),
-    ano:             new Date().getFullYear(),
-    equipe:          fields.equipeSel,
-    indicador_key:   key,
-    indicador:       INDICADORES[key],
-    nome:            fields.nome,
-    tipo:            key === "recursos" ? "Captação de recursos" : fields.tipo,
-    status:          key === "divulgacao" ? "Publicado" : fields.status,
-    evidencia:       fields.evidencia,
-    data_realizacao: fields.dataRealizacao,
-    participantes:   fields.participantes,
-    canal:           fields.canal,
-    alcance:         fields.alcance,
-    financiador:     fields.financiador,
-    valor_aprovado:  fields.valorAprovado,
-    moeda:           fields.moeda,
-    validado:        "Pendente",
-  };
 }
