@@ -2,6 +2,110 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  background-color: #f9fafb;
+/* ── Design Tokens CIATEN ─────────────────────────────────────────────────── */
+:root {
+  --c-primary:       #1A4F7A;
+  --c-primary-light: #E8F1F8;
+  --c-primary-dark:  #0F3254;
+  --c-accent:        #E85D1F;
+  --c-accent-light:  #FEF0E9;
+  --c-bg:            #F5F7FA;
+  --c-surface:       #FFFFFF;
+  --c-text:          #1C2B3A;
+  --c-text-muted:    #5A7184;
+  --c-border:        #D6E2EE;
+  --c-success:       #1B7F5A;
+  --c-success-bg:    #E7F6EF;
+  --c-warning:       #8B6200;
+  --c-warning-bg:    #FFF4D6;
+  --c-error:         #A13B3B;
+  --c-error-bg:      #FDEAEA;
 }
+
+/* ── Reset / Base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background-color: var(--c-bg);
+  color: var(--c-text);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--c-bg); }
+::-webkit-scrollbar-thumb { background: var(--c-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #9BBAD4; }
+
+/* ── Focus ────────────────────────────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--c-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* ── Tailwind primary alias (para classes como text-primary, bg-primary) ─── */
+/* Sobrescreve o valor que estava hardcoded como #1d4ed8 no tailwind.config   */
+
+/* ── Tabelas ─────────────────────────────────────────────────────────────── */
+.table-ciaten {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.table-ciaten th {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
+  background-color: var(--c-primary);
+  color: #fff;
+}
+
+.table-ciaten td {
+  padding: 0.75rem 1rem;
+  vertical-align: top;
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.5;
+  border-bottom: 1px solid var(--c-border);
+}
+
+.table-ciaten tbody tr:nth-child(even) { background-color: #F5F7FA; }
+.table-ciaten tbody tr:nth-child(odd)  { background-color: #FFFFFF; }
+.table-ciaten tbody tr:hover           { background-color: #EEF4FA; }
+
+.table-ciaten tfoot tr {
+  background-color: var(--c-primary);
+  color: #fff;
+  font-weight: 700;
+}
+
+.table-scroll-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 1rem;
+}
+
+/* ── Utilitários globais ─────────────────────────────────────────────────── */
+.cell-content {
+  white-space: pre-wrap;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.link-ciaten {
+  color: var(--c-primary);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link-ciaten:hover { color: var(--c-primary-dark); }
