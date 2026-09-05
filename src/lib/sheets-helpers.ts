@@ -34,7 +34,7 @@ export async function getGoogleToken(): Promise<string> {
   const pem = sa.private_key.replace(/\\n/g, "\n");
   const pb  = pem.replace(/-----BEGIN PRIVATE KEY-----/g,"").replace(/-----END PRIVATE KEY-----/g,"").replace(/\s+/g,"");
   const bk  = Uint8Array.from(atob(pb), (c) => c.charCodeAt(0));
-  const ck  = await crypto.subtle.importKey("pkcs8", bk, { name:"RSASSA-PKCS1-v1_5", hash:"SHA-256" }, false, ["sign"]);
+  const ck  = await crypto.subtle.importKey("pkcs8", bk.buffer as ArrayBuffer, { name:"RSASSA-PKCS1-v1_5", hash:"SHA-256" }, false, ["sign"]);
   const sg  = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", ck, new TextEncoder().encode(si));
   const sb  = btoa(String.fromCharCode(...new Uint8Array(sg))).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
 
