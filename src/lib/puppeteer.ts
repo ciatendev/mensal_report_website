@@ -1,12 +1,11 @@
-import puppeteerCore, { Browser as BrowserCore } from "puppeteer-core";
-import puppeteer, { Browser } from "puppeteer";
+import puppeteer, { Browser } from "puppeteer-core";
 import chromium from "@sparticuz/chromium";
 import Handlebars from "handlebars";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { renderRichText, styleCss } from "@/lib/pdf-format";
 
-let browserSingleton: Browser | BrowserCore | null = null;
+let browserSingleton: Browser | null = null;
 let logoBase64Cache: string | null = null;
 
 async function getLogoBase64(): Promise<string> {
@@ -17,16 +16,17 @@ async function getLogoBase64(): Promise<string> {
   return logoBase64Cache;
 }
 
-async function getBrowser(): Promise<Browser | BrowserCore> {
+async function getBrowser(): Promise<Browser> {
   if (browserSingleton && browserSingleton.connected) return browserSingleton;
 
   if (process.env.NODE_ENV === "production") {
     const packUrl = "https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar";
     const executablePath = await chromium.executablePath(packUrl);
-    browserSingleton = await puppeteerCore.launch({
+    browserSingleton = await puppeteer.launch({
       args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
       executablePath,
-      headless: true,
+      headless: chromium.headless,
     });
   } else {
     const configuredExecutable = process.env.PUPPETEER_EXECUTABLE_PATH;
