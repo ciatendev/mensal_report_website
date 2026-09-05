@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
       const emails = superUsers.map((u) => u.email).filter((e): e is string => !!e);
       if (!emails.length) return;
 
-      const appUrl        = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+      const appUrl        = process.env.NEXTAUTH_URL;
       const validacaoUrl  = `${appUrl}/annualActionsReport`;
 
       await sendActivitySubmittedEmail({

@@ -19,7 +19,7 @@ const EQUIPE_ROW: Record<string, number> = {
   "Olívia e Gabriel":          4,
   "Márcio e Malvina":          5,
   "Vagner e Regiane":          6,
-  "Vinícius, Kelson e Victor": 7,
+  "Vinícius, Kelson e Gleidson": 7,
   "Victor Barbosa":            8,
   "Dorcas e Andressa":         9,
   "Fábio e Roni":             10,

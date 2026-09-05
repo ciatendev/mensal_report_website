@@ -50,7 +50,7 @@ const bodySchema = z.discriminatedUnion("action", [editSchema, validateSchema]);
 // ─── Mapeamentos ──────────────────────────────────────────────────────────────
 const EQUIPE_ROW: Record<string, number> = {
   "Lilian e Antônio": 3, "Olívia e Gabriel": 4, "Márcio e Malvina": 5,
-  "Vagner e Regiane": 6, "Vinícius, Kelson e Victor": 7, "Victor Barbosa": 8,
+  "Vagner e Regiane": 6, "Vinícius, Kelson e Gleidson": 7, "Victor Barbosa": 8,
   "Dorcas e Andressa": 9, "Fábio e Roni": 10, "Ângelo e Anathália": 11,
 };
 const INDICADOR_COL: Record<string, number> = {
@@ -59,7 +59,7 @@ const INDICADOR_COL: Record<string, number> = {
 
 const EQUIPES_LIST = [
   "Lilian e Antônio","Olívia e Gabriel","Márcio e Malvina","Vagner e Regiane",
-  "Vinícius, Kelson e Victor","Victor Barbosa","Dorcas e Andressa","Fábio e Roni","Ângelo e Anathália",
+  "Vinícius, Kelson e Gleidson","Victor Barbosa","Dorcas e Andressa","Fábio e Roni","Ângelo e Anathália",
 ];
 const IND_HEADERS = [
   "Documento de recomendação\npara políticas públicas",
@@ -234,7 +234,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const newStatus     = parsed.data.activityStatus as "APPROVED" | "REJECTED" | "ADJUSTMENT_NEEDED";
     const nota          = parsed.data.notaValidacao ?? null;
     const validadorNome = user.name ?? user.email ?? "Coordenação";
-    const appUrl        = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+    const appUrl        = process.env.NEXTAUTH_URL;
 
     const updated = await prisma.activityRecord.update({
       where: { id: params.id },
