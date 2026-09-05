@@ -16,7 +16,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getApprovedUser } from "@/lib/auth-helpers";
 import { sendActivityValidatedEmail } from "@/lib/mailer";
-import { ActivityStatus } from "@prisma/client";
+
 import {
   TAB_T2, TAB_LOG,
   getGoogleToken, SB, shGet, shSet, shAppend,
@@ -231,7 +231,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       return NextResponse.json({ error: "Apenas coordenadores podem validar." }, { status: 403 });
     }
 
-    const newStatus     = parsed.data.activityStatus as ActivityStatus;
+    const newStatus     = parsed.data.activityStatus as "APPROVED" | "REJECTED" | "ADJUSTMENT_NEEDED";
     const nota          = parsed.data.notaValidacao ?? null;
     const validadorNome = user.name ?? user.email ?? "Coordenação";
     const appUrl        = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
