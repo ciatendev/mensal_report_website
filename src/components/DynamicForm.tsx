@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import SignatureCanvasWithUpload from "./SignatureCanvasWithUpload";
 import RichLinkEditor, { type RichLink } from "./RichLinkEditor";
+import { CLS } from "@/styles/tokens";
 
 type QuestionType = "TEXT" | "TEXTAREA" | "NUMBER" | "DATE" | "SELECT" | "CHECKBOX" | "YES_NO_JUSTIFY";
 
@@ -358,7 +359,18 @@ export default function DynamicForm({ template }: Props) {
 
         <section className="space-y-4">
           <div><label className="mb-1 block text-sm font-medium text-gray-700">Nome do Bolsista<span className="text-red-500">*</span></label><input value={submittedByName} onChange={(event) => setSubmittedByName(event.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2" placeholder="Digite o nome do responsável" /></div>
-          <div><label className="mb-1 block text-sm font-medium text-gray-700">Mês de Referência <span className="text-red-500">*</span></label><input type="month" lang="pt-BR" value={reportMonth} onChange={(event) => setReportMonth(event.target.value)} className="w-full rounded-md border border-gray-300 bg-white px-3 py-2" aria-label="Mês de Referência" /></div>
+          <div>
+          <label className={CLS.label}>
+            Mês de Referência{true && " *"}
+          </label>
+          <input
+            type="month"
+            value={reportMonth}
+            onChange={(event) => setReportMonth(event.target.value)}
+            required
+            className={CLS.input}
+          />
+        </div>
           {orderedQuestions.map((question) => {
             if (!question.isRepeatable) {
               return (
