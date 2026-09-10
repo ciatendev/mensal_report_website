@@ -1,5 +1,5 @@
 import puppeteer, { Browser } from "puppeteer-core";
-import chromium from "@sparticuz/chromium";
+import chromium from "@sparticuz/chromium-min";
 import Handlebars from "handlebars";
 import fs from "node:fs/promises";
 import path from "node:path";
@@ -15,17 +15,27 @@ async function getLogoBase64(): Promise<string> {
   logoBase64Cache = `data:image/png;base64,${buffer.toString("base64")}`;
   return logoBase64Cache;
 }
-
 async function getBrowser(): Promise<Browser> {
   if (browserSingleton && browserSingleton.connected) return browserSingleton;
 
   if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
-    const packUrl = "https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar";
+    chromium.setGraphicsMode = false;
+
+    const packUrl =
+      "https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar";
     const executablePath = await chromium.executablePath(packUrl);
 
     browserSingleton = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
+      args: [
+        ...chromium.args,
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+        "--single-process",
+        "--no-zygote",
+      ],
+      defaultViewport: { width: 1920, height: 1080 },
       executablePath,
       headless: true,
     });

@@ -16,6 +16,7 @@
     "@auth/prisma-adapter": "^2.7.2",
     "@prisma/client": "^5.22.0",
     "@sparticuz/chromium": "^130.0.0",
+    "@sparticuz/chromium-min": "^152.0.0",
     "clsx": "^2.1.1",
     "handlebars": "^4.7.8",
     "next": "14.2.18",
