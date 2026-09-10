@@ -20,24 +20,14 @@ async function getBrowser(): Promise<Browser> {
   if (browserSingleton && browserSingleton.connected) return browserSingleton;
 
   if (process.env.NODE_ENV === "production" || process.env.VERCEL) {
-    chromium.setGraphicsMode = false;
-
-    // Baixa/extrai a versão compatível com a release do Sparticuz
     const packUrl = "https://github.com/Sparticuz/chromium/releases/download/v123.0.1/chromium-v123.0.1-pack.tar";
     const executablePath = await chromium.executablePath(packUrl);
 
     browserSingleton = await puppeteer.launch({
-      args: [
-        ...chromium.args,
-        "--no-sandbox",
-        "--disable-setuid-sandbox",
-        "--disable-dev-shm-usage",
-        "--disable-gpu",
-        "--single-process", // Importante para evitar crash por falta de memória na Vercel
-      ],
+      args: chromium.args,
       defaultViewport: chromium.defaultViewport,
       executablePath,
-      headless: chromium.headless,
+      headless: true,
     });
   } else {
     const configuredExecutable = process.env.PUPPETEER_EXECUTABLE_PATH;
