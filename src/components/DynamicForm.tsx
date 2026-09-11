@@ -360,15 +360,18 @@ export default function DynamicForm({ template }: Props) {
         <section className="space-y-4">
           <div><label className="mb-1 block text-sm font-medium text-gray-700">Nome do Bolsista<span className="text-red-500">*</span></label><input value={submittedByName} onChange={(event) => setSubmittedByName(event.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2" placeholder="Digite o nome do responsável" /></div>
           <div>
-          <label className={CLS.label}>
-            Mês de Referência{true && " *"}
+          <label className="mb-1 block text-sm font-medium text-gray-700">
+            Mês de Referência <span className="text-red-500">*</span>
           </label>
           <input
             type="date"
-            value={reportMonth}
-            onChange={(event) => setReportMonth(event.target.value)}
+            value={reportMonth ? `${reportMonth}-01` : ""}
+            onChange={(e) => {
+              const raw = e.target.value; // "YYYY-MM-DD" ou ""
+              setReportMonth(raw ? raw.slice(0, 7) : ""); // → "YYYY-MM"
+            }}
             required
-            className={CLS.input}
+            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2"
           />
         </div>
           {orderedQuestions.map((question) => {
