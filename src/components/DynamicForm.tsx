@@ -364,7 +364,7 @@ export default function DynamicForm({ template }: Props) {
             Mês de Referência{true && " *"}
           </label>
           <input
-            type="month"
+            type="date"
             value={reportMonth}
             onChange={(event) => setReportMonth(event.target.value)}
             required
