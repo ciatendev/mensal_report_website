@@ -15,7 +15,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {[
               { href: "/admin/templates", label: "Modelos" },
               { href: "/admin/whitelist", label: "Usuários" },
-              { href: "/dashboard",       label: "Ver como Bolsista" },
             ].map((l) => (
               <Link
                 key={l.href}

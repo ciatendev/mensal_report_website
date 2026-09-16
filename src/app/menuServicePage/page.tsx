@@ -1,20 +1,33 @@
+import { auth } from "@/auth";
 import Link from "next/link";
 
 export default async function MenuServicePage() {
+  const session = await auth();
+  const isSuperUser = session?.user?.role === "SUPER_USER";
+
   const services = [
     {
-      href: "/dashboard",
-      icon: "📋",
+      href:  "/dashboard",
+      icon:  "📋",
       title: "Relatórios Mensais",
-      desc: "Preencha, assine e envie os relatórios mensais de atividades.",
+      desc:  "Preencha, assine e envie os relatórios mensais de atividades.",
+      superOnly: false,
     },
     {
-      href: "/annualActionsReport",
-      icon: "📊",
+      href:  "/annualActionsReport",
+      icon:  "📊",
       title: "Registro de Atividades",
-      desc: "Registre e acompanhe os resultados anuais do CIATEN.",
+      desc:  "Registre e acompanhe os resultados anuais do CIATEN.",
+      superOnly: false,
     },
-  ];
+    {
+      href:  "/admin/whitelist",
+      icon:  "👥",
+      title: "Gestão de Usuários",
+      desc:  "Gerencie o acesso dos usuários ao sistema.",
+      superOnly: true,
+    },
+  ].filter((s) => !s.superOnly || isSuperUser);
 
   return (
     <main className="min-h-screen flex items-center justify-center px-4 bg-[#F5F7FA]">

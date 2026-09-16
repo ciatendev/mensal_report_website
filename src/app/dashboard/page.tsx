@@ -24,11 +24,6 @@ export default async function DashboardPage() {
             </div>
           </div>
           <div className="flex items-center gap-3">
-            {session?.user?.role === "SUPER_USER" && (
-              <Link href="/admin/templates" className="text-sm font-semibold text-[#1A4F7A] hover:underline">
-                Painel Admin
-              </Link>
-            )}
             <Link href="/menuServicePage" className="text-sm text-[#5A7184] hover:text-[#1A4F7A] transition-colors">
               Menu
             </Link>
