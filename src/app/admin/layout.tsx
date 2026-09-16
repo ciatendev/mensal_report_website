@@ -24,6 +24,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 {l.label}
               </Link>
             ))}
+            <Link href="/menuServicePage" className="px-3 py-1.5 rounded-lg text-white/80 hover:text-white hover:bg-white/10 transition-colors font-medium">
+              Menu
+            </Link>
             <form action={async () => { "use server"; await signOut({ redirectTo: "/" }); }}>
               <button className="px-3 py-1.5 rounded-lg bg-[#FDEAEA] text-[#A13B3B] font-semibold hover:bg-white transition-colors text-sm ml-1">
                 Sair
