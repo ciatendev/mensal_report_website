@@ -97,6 +97,24 @@ export function useAnnualReport() {
   useEffect(() => {
     fetchMeus();
     fetchAprovados();
+    // Busca equipe do usuário logado para pré-preencher o campo e restringir acesso
+    fetch("/api/teams/my")
+      .then((r) => r.json())
+      .then((team) => {
+        setUserTeam(team ?? null);
+        if (team?.nome) setEquipeSel(team.nome);
+      })
+      .catch(() => setUserTeam(null));
+
+    // Busca lista de equipes do banco (para o SUPER_USER selecionar)
+    fetch("/api/teams")
+      .then((r) => r.ok ? r.json() : [])
+      .then((teams: { nome: string }[]) => {
+        if (Array.isArray(teams) && teams.length > 0) {
+          setDbEquipes(teams.map((t) => t.nome));
+        }
+      })
+      .catch(() => {});
   }, [fetchMeus, fetchAprovados]);
 
   // Recarrega ao mudar de aba
@@ -166,7 +184,7 @@ export function useAnnualReport() {
 
   // ─── Reset formulário ────────────────────────────────────────────────────
   const resetForm = useCallback(() => {
-    setEditingId(null); setEquipeSel(""); setIndicadorSel(""); setNome("");
+    setEditingId(null); setEquipeSel(userTeam?.nome ?? ""); setIndicadorSel(""); setNome("");
     setTipo(""); setStatus(""); setEvidencia(""); setDataRealizacao("");
     setParticipantes(""); setCanal(""); setAlcance(""); setFinanciador("");
     setValorAprovado(""); setMoeda("BRL"); setSubmitStatus("idle"); setSubmitError(null);
@@ -398,6 +416,11 @@ export function useAnnualReport() {
   const [sheetsExportStatus, setSheetsExportStatus] = useState<Record<string, SubmitStatus>>({});
   const [sheetsExportError,  setSheetsExportError]  = useState<Record<string, string | null>>({});
 
+  // Equipe do usuário logado (null = SUPER_USER ou sem equipe)
+  const [userTeam, setUserTeam] = useState<{ id: string; nome: string } | null | undefined>(undefined);
+  // Equipes criadas no banco (para o SUPER_USER selecionar)
+  const [dbEquipes, setDbEquipes] = useState<string[]>([]);
+
   const exportToSheets = useCallback(async (target: "tabela1" | "tabela2" | "registros") => {
     setSheetsExportStatus((prev) => ({ ...prev, [target]: "loading" }));
     setSheetsExportError((prev) => ({ ...prev, [target]: null }));
@@ -464,5 +487,6 @@ export function useAnnualReport() {
     sheetsStatus, sheetsError,
     // Exportações unificadas para Sheets (via /api/annual-actions/export)
     exportToSheets, sheetsExportStatus, sheetsExportError,
+    userTeam, dbEquipes,
   };
 }

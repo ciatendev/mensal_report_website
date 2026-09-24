@@ -59,7 +59,7 @@ export const EQUIPES = [
   "Olívia e Gabriel",
   "Márcio e Malvina",
   "Vagner e Regiane",
-  "Vinícius, Kelson e Gleidson",
+  "Vinícius, Kelson e Victor",
   "Victor Barbosa",
   "Dorcas e Andressa",
   "Fábio e Roni",

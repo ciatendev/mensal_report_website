@@ -25,7 +25,7 @@ const bodySchema = z.object({
 // ─── Constantes de domínio ────────────────────────────────────────────────────
 const EQUIPES = [
   "Lilian e Antônio","Olívia e Gabriel","Márcio e Malvina","Vagner e Regiane",
-  "Vinícius, Kelson e Gleidson","Victor Barbosa","Dorcas e Andressa","Fábio e Roni","Ângelo e Anathália",
+  "Vinícius, Kelson e Victor","Victor Barbosa","Dorcas e Andressa","Fábio e Roni","Ângelo e Anathália",
 ];
 
 // Cabeçalhos das colunas da Tabela 2 — completos, com \n para quebrar dentro da célula

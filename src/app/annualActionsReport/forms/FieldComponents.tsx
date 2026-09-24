@@ -50,3 +50,32 @@ export const TextField: React.FC<TextFieldProps> = ({
     />
   </div>
 );
+
+/**
+ * MonthYearField — Usa input type="date" nativo (abre calendário no browser).
+ * Armazena apenas "YYYY-MM" descartando o dia, compatível com Firefox e Chrome.
+ */
+interface MonthYearFieldProps {
+  label: string;
+  value: string;          // "YYYY-MM" ou ""
+  onChange: (v: string) => void;
+  required?: boolean;
+  colSpan?: "full";
+}
+
+export const MonthYearField: React.FC<MonthYearFieldProps> = ({
+  label, value, onChange, required, colSpan,
+}) => (
+  <div className={colSpan === "full" ? "md:col-span-2" : undefined}>
+    <label className={CLS.label}>{label}{required && " *"}</label>
+    {/* value precisa de "YYYY-MM-DD" — completamos com "-01".
+        onChange extrai só "YYYY-MM" (slice 0–7) descartando o dia. */}
+    <input
+      type="date"
+      value={value ? `${value}-01` : ""}
+      onChange={(e) => onChange(e.target.value ? e.target.value.slice(0, 7) : "")}
+      required={required}
+      className={CLS.input}
+    />
+  </div>
+);

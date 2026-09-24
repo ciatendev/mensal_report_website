@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import SignatureCanvasWithUpload from "./SignatureCanvasWithUpload";
 import RichLinkEditor, { type RichLink } from "./RichLinkEditor";
-import { CLS } from "@/styles/tokens";
 
 type QuestionType = "TEXT" | "TEXTAREA" | "NUMBER" | "DATE" | "SELECT" | "CHECKBOX" | "YES_NO_JUSTIFY";
 
@@ -94,6 +93,67 @@ function DownloadButton({ href, disabled = false }: { href?: string | null; disa
     >
       Baixar Relatório (PDF)
     </a>
+  );
+}
+
+/**
+ * MonthYearPicker — Seletor de mês/ano compatível com todos os browsers.
+ * Substitui <input type="month"> que não é suportado no Firefox.
+ * Produz e consome strings no formato "YYYY-MM" (mesmo formato do input type=month).
+ */
+const MONTHS = [
+  "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+  "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro",
+];
+
+function MonthYearPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const currentYear = new Date().getFullYear();
+  // Anos disponíveis: 3 anos atrás até 1 ano à frente
+  const years = Array.from({ length: 5 }, (_, i) => currentYear - 3 + i);
+
+  const selectedYear  = value ? parseInt(value.split("-")[0]) : "";
+  const selectedMonth = value ? parseInt(value.split("-")[1]) : "";
+
+  function handleChange(year: string | number, month: string | number) {
+    if (year && month) {
+      onChange(`${year}-${String(month).padStart(2, "0")}`);
+    } else {
+      onChange("");
+    }
+  }
+
+  const selectCls = "rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 transition";
+
+  return (
+    <div>
+      <label className="mb-1 block text-sm font-medium text-gray-700">
+        Mês de Referência <span className="text-red-500">*</span>
+      </label>
+      <div className="flex gap-2">
+        <select
+          value={selectedMonth}
+          onChange={(e) => handleChange(selectedYear, e.target.value)}
+          className={`flex-1 ${selectCls}`}
+          aria-label="Mês"
+        >
+          <option value="">Mês</option>
+          {MONTHS.map((name, i) => (
+            <option key={i + 1} value={i + 1}>{name}</option>
+          ))}
+        </select>
+        <select
+          value={selectedYear}
+          onChange={(e) => handleChange(e.target.value, selectedMonth)}
+          className={`w-32 ${selectCls}`}
+          aria-label="Ano"
+        >
+          <option value="">Ano</option>
+          {years.map((y) => (
+            <option key={y} value={y}>{y}</option>
+          ))}
+        </select>
+      </div>
+    </div>
   );
 }
 
@@ -360,20 +420,22 @@ export default function DynamicForm({ template }: Props) {
         <section className="space-y-4">
           <div><label className="mb-1 block text-sm font-medium text-gray-700">Nome do Bolsista<span className="text-red-500">*</span></label><input value={submittedByName} onChange={(event) => setSubmittedByName(event.target.value)} className="w-full rounded-md border border-gray-300 px-3 py-2" placeholder="Digite o nome do responsável" /></div>
           <div>
-          <label className="mb-1 block text-sm font-medium text-gray-700">
-            Mês de Referência <span className="text-red-500">*</span>
-          </label>
-          <input
-            type="date"
-            value={reportMonth ? `${reportMonth}-01` : ""}
-            onChange={(e) => {
-              const raw = e.target.value; // "YYYY-MM-DD" ou ""
-              setReportMonth(raw ? raw.slice(0, 7) : ""); // → "YYYY-MM"
-            }}
-            required
-            className="w-full rounded-md border border-gray-300 bg-white px-3 py-2"
-          />
-        </div>
+            <label className="mb-1 block text-sm font-medium text-gray-700">
+              Mês de Referência <span className="text-red-500">*</span>
+            </label>
+            {/* input type="date" exibe o calendário nativo. O onChange extrai apenas
+                YYYY-MM (descartando o dia) para satisfazer a validação "^\d{4}-(0[1-9]|1[0-2])$" */}
+            <input
+              type="date"
+              value={reportMonth ? `${reportMonth}-01` : ""}
+              onChange={(e) => {
+                const raw = e.target.value; // "YYYY-MM-DD" ou ""
+                setReportMonth(raw ? raw.slice(0, 7) : ""); // → "YYYY-MM"
+              }}
+              required
+              className="w-full rounded-md border border-gray-300 bg-white px-3 py-2"
+            />
+          </div>
           {orderedQuestions.map((question) => {
             if (!question.isRepeatable) {
               return (

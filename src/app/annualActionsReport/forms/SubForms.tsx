@@ -3,7 +3,7 @@
  */
 import React from "react";
 import { CLS } from "@/styles/tokens";
-import { SelectField, TextField } from "./FieldComponents";
+import { SelectField, TextField, MonthYearField } from "./FieldComponents";
 import type {
   FormPoliticasProps, FormPublicacoesProps, FormCursosProps,
   FormTecnologiaProps, FormDivulgacaoProps, FormRecursosProps,
@@ -20,7 +20,7 @@ export const FormPoliticas: React.FC<FormPoliticasProps> = ({ tipo, setTipo, sta
   <SubFormCard title="Políticas públicas">
     <SelectField label="Tipo de produto" value={tipo} onChange={setTipo!} options={TIPOS.politicas} required />
     <SelectField label="Situação" value={status!} onChange={setStatus!} options={STATUSES.politicas} required />
-    <TextField label="Evidência / link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required colSpan="full" />
+    <TextField label="Evidência / link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required={status === "Concluído"} colSpan="full" />
   </SubFormCard>
 );
 
@@ -28,7 +28,7 @@ export const FormPublications: React.FC<FormPublicacoesProps> = ({ tipo, setTipo
   <SubFormCard title="Publicação científica">
     <SelectField label="Tipo" value={tipo} onChange={setTipo!} options={TIPOS.publicacoes} required />
     <SelectField label="Situação" value={status!} onChange={setStatus!} options={STATUSES.publicacoes} required />
-    <TextField label="DOI ou link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required colSpan="full" />
+    <TextField label="DOI ou link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required={["Aceito","Publicado"].includes(status ?? "")} colSpan="full" />
   </SubFormCard>
 );
 
@@ -36,9 +36,9 @@ export const FormCourses: React.FC<FormCursosProps> = ({ tipo, setTipo, status, 
   <SubFormCard title="Curso, evento ou ação">
     <SelectField label="Tipo" value={tipo} onChange={setTipo!} options={TIPOS.cursos} required />
     <SelectField label="Situação" value={status!} onChange={setStatus!} options={STATUSES.cursos} required />
-    <TextField label="Data da realização" value={dataRealizacao!} onChange={setDataRealizacao!} type="date" />
+    <MonthYearField label="Mês de realização" value={dataRealizacao!} onChange={setDataRealizacao!} />
     <TextField label="Nº de participantes" value={participantes!} onChange={setParticipantes!} type="number" min="0" placeholder="Opcional" />
-    <TextField label="Evidência / link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required colSpan="full" />
+    <TextField label="Evidência / link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required={status === "Concluído"} colSpan="full" />
   </SubFormCard>
 );
 
@@ -46,7 +46,7 @@ export const FormTechnology: React.FC<FormTecnologiaProps> = ({ tipo, setTipo, s
   <SubFormCard title="Tecnologia e inovação">
     <SelectField label="Tipo" value={tipo} onChange={setTipo!} options={TIPOS.tecnologia} required />
     <SelectField label="Estágio atual" value={status!} onChange={setStatus!} options={STATUSES.tecnologia} required />
-    <TextField label="Evidência / link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required colSpan="full" />
+    <TextField label="Evidência / link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required={["Piloto","Implementado"].includes(status ?? "")} colSpan="full" />
   </SubFormCard>
 );
 
@@ -69,6 +69,6 @@ export const FormFeatures: React.FC<FormRecursosProps> = ({ status, setStatus, f
         <SelectField label="Moeda" value={moeda!} onChange={setMoeda!} options={["BRL", "USD", "EUR", "Outra"]} required />
       </>
     )}
-    <TextField label="Evidência / link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required colSpan="full" />
+    <TextField label="Evidência / link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required={["Aprovado","Recurso recebido"].includes(status ?? "")} colSpan="full" />
   </SubFormCard>
 );

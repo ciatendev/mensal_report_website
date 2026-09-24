@@ -27,6 +27,7 @@ export default async function MenuServicePage() {
       desc:  "Gerencie o acesso dos usuários ao sistema.",
       superOnly: true,
     },
+
   ].filter((s) => !s.superOnly || isSuperUser);
 
   return (

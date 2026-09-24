@@ -37,7 +37,7 @@ export default async function DashboardPage() {
       <main className="max-w-4xl mx-auto px-4 py-8">
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-[#1C2B3A]">
-            Olá, {session?.user?.name?.split(" ")[0]} 👋
+            Olá, {session?.user?.name?.split(" ")[0]} 
           </h1>
           <p className="text-[#5A7184] text-sm mt-1">Selecione um formulário para preencher e assinar.</p>
         </div>

@@ -14,6 +14,11 @@ export default function AnnualActionsReportPage() {
   const { data: session } = useSession();
   const isSuperUser = session?.user?.role === "SUPER_USER";
 
+  async function handleDelete(id: string) {
+    const res = await fetch(`/api/annual-actions/records/${id}`, { method: "DELETE" });
+    if (res.ok) await r.fetchMeus();
+  }
+
   return (
     <div className="min-h-screen bg-[#F5F7FA] font-sans text-[#1C2B3A]">
       <PageHeader
@@ -26,6 +31,9 @@ export default function AnnualActionsReportPage() {
         {r.activeTab === "registro" && (
           <TabRegistro
             editingId={r.editingId}
+            isSuperUser={isSuperUser}
+            userTeam={r.userTeam}
+            dbEquipes={r.dbEquipes}
             equipeSel={r.equipeSel}           setEquipeSel={r.setEquipeSel}
             indicadorSel={r.indicadorSel}     setIndicadorSel={r.setIndicadorSel}
             nome={r.nome}                     setNome={r.setNome}
@@ -53,6 +61,10 @@ export default function AnnualActionsReportPage() {
             filtroEquipe={r.filtroEquipe}
             setFiltroEquipe={r.setFiltroEquipe}
             onEditar={r.preencherEdicao}
+            onDelete={handleDelete}
+            isSuperUser={isSuperUser}
+            userTeamNome={r.userTeam?.nome ?? null}
+            dbEquipes={r.dbEquipes}
           />
         )}
 
@@ -88,6 +100,7 @@ export default function AnnualActionsReportPage() {
           <TabResultadosCiaten
             totais={r.totais}
             usdTotal={r.usdTotal}
+            onOpenModal={(key: IndicadorKey, equipe: string) => r.setModalData({ key, equipe })}
             onExportCsv={r.exportTabela1Csv}
             onExportTabela2Csv={r.exportTabela2Csv}
             onExportRegistrosCsv={r.exportRegistrosCsv}

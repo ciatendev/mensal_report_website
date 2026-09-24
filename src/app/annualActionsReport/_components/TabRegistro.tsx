@@ -10,6 +10,9 @@ import type { SubmitStatus } from "../_hooks/useAnnualReport";
 
 interface Props {
   editingId: string | null;
+  isSuperUser: boolean;
+  userTeam: { id: string; nome: string } | null | undefined;
+  dbEquipes: string[];  // equipes criadas no banco
   equipeSel: string;         setEquipeSel: (v: string) => void;
   indicadorSel: IndicadorKey | ""; setIndicadorSel: (v: IndicadorKey | "") => void;
   nome: string;              setNome: (v: string) => void;
@@ -30,6 +33,7 @@ interface Props {
 }
 
 export const TabRegistro: React.FC<Props> = (p) => {
+  const equipeLocked = !p.isSuperUser && !!p.userTeam;
   const formProps = {
     tipo: p.tipo, setTipo: p.setTipo, status: p.status, setStatus: p.setStatus,
     evidencia: p.evidencia, setEvidencia: p.setEvidencia,
@@ -77,10 +81,26 @@ export const TabRegistro: React.FC<Props> = (p) => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div>
             <label className={CLS.label}>Equipe *</label>
-            <select value={p.equipeSel} onChange={(e) => p.setEquipeSel(e.target.value)} required className={CLS.input}>
-              <option value="">Selecione</option>
-              {EQUIPES.map((eq) => <option key={eq} value={eq}>{eq}</option>)}
-            </select>
+            {/* Sem equipe: aviso e campo desabilitado */}
+            {!p.isSuperUser && p.userTeam === null ? (
+              <div className="rounded-xl border border-[#f0d692] bg-[#FFF8E7] px-3 py-2.5 text-sm text-[#795D13]">
+                ⚠ Você não pertence a nenhuma equipe. Solicite ao coordenador que te adicione a uma equipe antes de registrar atividades.
+              </div>
+            ) : equipeLocked ? (
+              /* Tem equipe: pré-preenchido e bloqueado */
+              <div className={`${CLS.input} bg-[#F5F7FA] text-[#1C2B3A] font-semibold cursor-not-allowed select-none`}>
+                {p.userTeam?.nome}
+              </div>
+            ) : (
+              /* SUPER_USER: pode escolher qualquer equipe */
+              <select value={p.equipeSel} onChange={(e) => p.setEquipeSel(e.target.value)} required className={CLS.input}>
+                <option value="">Selecione</option>
+                {/* Combina estáticas + criadas no banco (sem duplicatas) */}
+                {Array.from(new Set([...EQUIPES, ...p.dbEquipes])).map((eq) => (
+                  <option key={eq} value={eq}>{eq}</option>
+                ))}
+              </select>
+            )}
           </div>
           <div>
             <label className={CLS.label}>Indicador *</label>
@@ -109,12 +129,11 @@ export const TabRegistro: React.FC<Props> = (p) => {
       <div className={`${CLS.card} p-4`}>
         <p className="text-xs text-[#5A7184] mb-3">ID, data/hora, ano e validação são gerados automaticamente.</p>
         <div className="flex gap-2 flex-wrap items-center">
-          <button type="submit" disabled={p.submitStatus === "loading"} className={`${CLS.btnPrimary} flex items-center gap-2`}>
+          <button type="submit" disabled={p.submitStatus === "loading" || (!p.isSuperUser && p.userTeam === null)} className={`${CLS.btnPrimary} flex items-center gap-2`}>
             {p.submitStatus === "loading" && <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin inline-block" />}
             {p.submitStatus === "loading" ? "Salvando…" : p.editingId ? "Reenviar para validação" : "Enviar registro"}
           </button>
           <button type="button" onClick={p.onReset} className={CLS.btnSecondary}>Limpar</button>
-          <button type="button" onClick={() => signOut({ callbackUrl: "/" })} className={CLS.btnGhost}>Sair</button>
         </div>
       </div>
     </form>

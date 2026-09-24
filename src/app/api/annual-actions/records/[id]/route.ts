@@ -50,7 +50,7 @@ const bodySchema = z.discriminatedUnion("action", [editSchema, validateSchema]);
 // ─── Mapeamentos ──────────────────────────────────────────────────────────────
 const EQUIPE_ROW: Record<string, number> = {
   "Lilian e Antônio": 3, "Olívia e Gabriel": 4, "Márcio e Malvina": 5,
-  "Vagner e Regiane": 6, "Vinícius, Kelson e Gleidson": 7, "Victor Barbosa": 8,
+  "Vagner e Regiane": 6, "Vinícius, Kelson e Victor": 7, "Victor Barbosa": 8,
   "Dorcas e Andressa": 9, "Fábio e Roni": 10, "Ângelo e Anathália": 11,
 };
 const INDICADOR_COL: Record<string, number> = {
@@ -59,7 +59,7 @@ const INDICADOR_COL: Record<string, number> = {
 
 const EQUIPES_LIST = [
   "Lilian e Antônio","Olívia e Gabriel","Márcio e Malvina","Vagner e Regiane",
-  "Vinícius, Kelson e Gleidson","Victor Barbosa","Dorcas e Andressa","Fábio e Roni","Ângelo e Anathália",
+  "Vinícius, Kelson e Victor","Victor Barbosa","Dorcas e Andressa","Fábio e Roni","Ângelo e Anathália",
 ];
 const IND_HEADERS = [
   "Documento de recomendação\npara políticas públicas",
@@ -207,7 +207,12 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 
   // ── Edição pelo autor ──────────────────────────────────────────────────────
   if (parsed.data.action === "edit") {
-    if (record.authorId !== user.id) {
+    // Membros da equipe podem editar; SUPER_USER pode editar qualquer
+    const canEdit = user.role === "SUPER_USER" || record.authorId === user.id || await (async () => {
+      const team = await prisma.team.findFirst({ where: { nome: record.equipe }, include: { membros: true } });
+      return team?.membros.some((m) => m.userId === user.id) ?? false;
+    })();
+    if (!canEdit) {
       return NextResponse.json({ error: "Sem permissão para editar." }, { status: 403 });
     }
     if (!["PENDING", "ADJUSTMENT_NEEDED"].includes(record.activityStatus)) {
@@ -234,7 +239,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const newStatus     = parsed.data.activityStatus as "APPROVED" | "REJECTED" | "ADJUSTMENT_NEEDED";
     const nota          = parsed.data.notaValidacao ?? null;
     const validadorNome = user.name ?? user.email ?? "Coordenação";
-    const appUrl        = process.env.NEXTAUTH_URL;
+    const appUrl        = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
 
     const updated = await prisma.activityRecord.update({
       where: { id: params.id },
@@ -266,11 +271,20 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     }
 
     // Envia e-mail ao autor com resultado — aguarda para garantir envio
-    const authorEmail = record.author?.email;
-    if (authorEmail) {
-      try {
+    // Envia e-mail ao autor e a todos os membros da equipe
+    try {
+      const teamData = await prisma.team.findFirst({
+        where:   { nome: record.equipe },
+        include: { membros: { include: { user: { select: { email: true, name: true } } } } },
+      });
+      const recipientEmails = Array.from(new Set([
+        record.author?.email,
+        ...(teamData?.membros.map((m) => m.user.email) ?? []),
+      ])).filter((e): e is string => !!e);
+
+      for (const email of recipientEmails) {
         await sendActivityValidatedEmail({
-          to:              authorEmail,
+          to:              email,
           authorName:      record.author.name ?? "Usuário",
           recordNome:      record.nome,
           recordIndicador: record.indicador,
@@ -279,12 +293,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
           validadorName:   validadorNome,
           registrosUrl:    `${appUrl}/annualActionsReport`,
         });
-        console.log(`[validate] E-mail enviado para ${authorEmail} — status: ${newStatus}`);
-      } catch (err) {
-        console.error("[validate] Falha ao enviar e-mail ao autor:", err);
       }
-    } else {
-      console.warn("[validate] Autor sem e-mail — e-mail não enviado.");
+      console.log(`[validate] E-mail enviado para ${recipientEmails.join(", ")} — status: ${newStatus}`);
+    } catch (err) {
+      console.error("[validate] Falha ao enviar e-mail:", err);
     }
 
     return NextResponse.json({ ...updated, sheetsError });
@@ -300,8 +312,11 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
 
   const record = await prisma.activityRecord.findUnique({ where: { id: params.id } });
   if (!record) return NextResponse.json({ error: "Não encontrado." }, { status: 404 });
-  if (record.authorId !== user.id && user.role !== "SUPER_USER") {
-    return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  if (user.role !== "SUPER_USER" && record.authorId !== user.id) {
+    // Verifica se é membro da equipe
+    const team = await prisma.team.findFirst({ where: { nome: record.equipe }, include: { membros: true } });
+    const isTeamMember = team?.membros.some((m) => m.userId === user.id) ?? false;
+    if (!isTeamMember) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
   if (!["PENDING", "ADJUSTMENT_NEEDED"].includes(record.activityStatus)) {
     return NextResponse.json({ error: "Só é possível excluir registros pendentes ou em ajuste." }, { status: 422 });

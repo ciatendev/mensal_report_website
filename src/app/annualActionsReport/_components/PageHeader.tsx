@@ -52,7 +52,7 @@ export const PageHeader: React.FC<Props> = ({ activeTab, onTabChange, onSignOut 
             >
               {tab.label}
               {tab.superUserOnly && (
-                <span className="ml-1 text-[10px] opacity-70"></span>
+                <span className="ml-1 text-[10px] opacity-70">★</span>
               )}
             </button>
           ))}

@@ -1,7 +1,14 @@
 /**
- * GET  /api/annual-actions/records  — Lista registros (filtrado por papel)
- * POST /api/annual-actions/records  — Cria novo registro (status PENDING, só no DB)
- *                                    + envia e-mail de notificação aos SUPER_USERs
+ * GET  /api/annual-actions/records  — Lista registros
+ * POST /api/annual-actions/records  — Cria novo registro
+ *
+ * Permissões:
+ *   USER      → vê apenas registros da sua equipe (via TeamMember)
+ *   SUPER_USER → vê todos
+ *
+ * Emails ao criar:
+ *   → SUPER_USERs (validação pendente)
+ *   → Membros da equipe (notificação de atividade criada)
  */
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
@@ -28,7 +35,6 @@ const createSchema = z.object({
   moeda:           z.string().optional(),
 });
 
-// GET — usuário comum vê só os próprios; SUPER_USER vê todos
 export async function GET(req: NextRequest) {
   const user = await getApprovedUser();
   if (!user) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
@@ -37,10 +43,30 @@ export async function GET(req: NextRequest) {
   const equipeFilter = searchParams.get("equipe");
   const anoFilter    = searchParams.get("ano") ? parseInt(searchParams.get("ano")!) : undefined;
 
+  let equipeRestrita: string | undefined;
+
+  if (user.role !== "SUPER_USER") {
+    // Descobre a equipe do usuário
+    const membership = await prisma.teamMember.findFirst({
+      where:   { userId: user.id },
+      include: { team: true },
+    });
+    equipeRestrita = membership?.team.nome;
+    // Sem equipe → retorna apenas os próprios registros
+    if (!equipeRestrita) {
+      equipeRestrita = undefined;
+    }
+  }
+
   const where = {
-    ...(user.role !== "SUPER_USER" ? { authorId: user.id } : {}),
-    ...(equipeFilter               ? { equipe: equipeFilter } : {}),
-    ...(anoFilter                  ? { ano: anoFilter } : {}),
+    ...(user.role !== "SUPER_USER" && equipeRestrita
+      ? { equipe: equipeRestrita }
+      : user.role !== "SUPER_USER"
+      ? { authorId: user.id }
+      : {}
+    ),
+    ...(equipeFilter ? { equipe: equipeFilter } : {}),
+    ...(anoFilter    ? { ano: anoFilter } : {}),
   };
 
   const records = await prisma.activityRecord.findMany({
@@ -55,7 +81,6 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(records);
 }
 
-// POST — cria registro no DB com status PENDING e notifica SUPER_USERs por email
 export async function POST(req: NextRequest) {
   const user = await getApprovedUser();
   if (!user) return NextResponse.json({ error: "Não autorizado." }, { status: 401 });
@@ -68,6 +93,18 @@ export async function POST(req: NextRequest) {
   const parsed = createSchema.safeParse(body);
   if (!parsed.success) {
     return NextResponse.json({ error: "Dados inválidos.", details: parsed.error.flatten() }, { status: 400 });
+  }
+
+  // Usuário comum só pode registrar na própria equipe
+  if (user.role !== "SUPER_USER") {
+    const membership = await prisma.teamMember.findFirst({
+      where:   { userId: user.id },
+      include: { team: true },
+    });
+    const userTeam = membership?.team.nome;
+    if (userTeam && parsed.data.equipe !== userTeam) {
+      return NextResponse.json({ error: "Você só pode registrar atividades da sua própria equipe." }, { status: 403 });
+    }
   }
 
   const record = await prisma.activityRecord.create({
@@ -92,27 +129,47 @@ export async function POST(req: NextRequest) {
     include: { author: { select: { id: true, name: true, email: true } } },
   });
 
-  // Notificar SUPER_USERs por e-mail (não bloqueia a resposta)
-  prisma.user
-    .findMany({ where: { role: "SUPER_USER", status: "APPROVED" }, select: { email: true } })
-    .then(async (superUsers) => {
-      const emails = superUsers.map((u) => u.email).filter((e): e is string => !!e);
-      if (!emails.length) return;
+  // Dispara emails em background
+  Promise.all([
+    // 1. SUPER_USERs: notificação de registro pendente
+    prisma.user
+      .findMany({ where: { role: "SUPER_USER", status: "APPROVED" }, select: { email: true } })
+      .then(async (supers) => {
+        const emails = supers.map((u) => u.email).filter((e): e is string => !!e);
+        if (!emails.length) return;
+        const appUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+        await sendActivitySubmittedEmail({
+          to:              emails,
+          authorName:      user.name ?? user.email ?? "Usuário",
+          authorEmail:     user.email ?? "",
+          recordNome:      record.nome,
+          recordIndicador: record.indicador,
+          recordEquipe:    record.equipe,
+          validacaoUrl:    `${appUrl}/annualActionsReport`,
+        });
+      }),
 
-      const appUrl        = process.env.NEXTAUTH_URL;
-      const validacaoUrl  = `${appUrl}/annualActionsReport`;
-
-      await sendActivitySubmittedEmail({
-        to:              emails,
-        authorName:      user.name ?? user.email ?? "Usuário",
-        authorEmail:     user.email ?? "",
-        recordNome:      record.nome,
-        recordIndicador: record.indicador,
-        recordEquipe:    record.equipe,
-        validacaoUrl,
-      });
-    })
-    .catch((err) => console.error("[POST records] Falha ao enviar e-mail:", err));
+    // 2. Membros da equipe (exceto o autor): aviso de nova atividade registrada
+    prisma.team
+      .findFirst({ where: { nome: parsed.data.equipe }, include: { membros: { include: { user: { select: { email: true, name: true } } } } } })
+      .then(async (team) => {
+        if (!team) return;
+        const memberEmails = team.membros
+          .map((m) => m.user.email)
+          .filter((e): e is string => !!e && e !== user.email);
+        if (!memberEmails.length) return;
+        const appUrl = process.env.NEXTAUTH_URL ?? "http://localhost:3000";
+        await sendActivitySubmittedEmail({
+          to:              memberEmails,
+          authorName:      user.name ?? user.email ?? "Usuário",
+          authorEmail:     user.email ?? "",
+          recordNome:      record.nome,
+          recordIndicador: record.indicador,
+          recordEquipe:    record.equipe,
+          validacaoUrl:    `${appUrl}/annualActionsReport`,
+        });
+      }),
+  ]).catch((err) => console.error("[POST records] email error:", err));
 
   return NextResponse.json(record, { status: 201 });
 }

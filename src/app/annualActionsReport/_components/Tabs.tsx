@@ -47,14 +47,24 @@ interface MeusRegistrosProps {
   filtroEquipe: string;
   setFiltroEquipe: (v: string) => void;
   onEditar: (id: string) => void;
+  onDelete: (id: string) => void;
+  isSuperUser: boolean;
+  userTeamNome: string | null;
+  dbEquipes?: string[];  // equipes criadas no banco para o filtro
 }
 
 export const TabMeusRegistros: React.FC<MeusRegistrosProps> = ({
-  registros, loadingData, filtroEquipe, setFiltroEquipe, onEditar,
+  registros, loadingData, filtroEquipe, setFiltroEquipe, onEditar, onDelete,
+  isSuperUser, userTeamNome, dbEquipes = [],
 }) => {
-  const ajuste    = registros.filter((r) => r.activityStatus === "ADJUSTMENT_NEEDED");
-  const pendente  = registros.filter((r) => r.activityStatus === "PENDING");
-  const analisado = registros.filter((r) => ["APPROVED","REJECTED"].includes(r.activityStatus));
+  const todasEquipes = Array.from(new Set([...EQUIPES, ...dbEquipes]));
+  // Aplica filtro por equipe (SUPER_USER pode filtrar; usuário comum já recebe pre-filtrado)
+  const filtrados = filtroEquipe
+    ? registros.filter((r) => r.equipe === filtroEquipe)
+    : registros;
+  const ajuste    = filtrados.filter((r) => r.activityStatus === "ADJUSTMENT_NEEDED");
+  const pendente  = filtrados.filter((r) => r.activityStatus === "PENDING");
+  const analisado = filtrados.filter((r) => ["APPROVED","REJECTED"].includes(r.activityStatus));
 
   const Section: React.FC<{ title: React.ReactNode; items: DbRegistro[]; emptyMsg: string }> = ({ title, items, emptyMsg }) => (
     <section>
@@ -82,9 +92,17 @@ export const TabMeusRegistros: React.FC<MeusRegistrosProps> = ({
               )}
             </div>
             {["PENDING","ADJUSTMENT_NEEDED"].includes(r.activityStatus) && (
-              <button onClick={() => onEditar(r.id)} className={`${CLS.btnGhost} text-xs shrink-0`}>
-                Editar e reenviar
-              </button>
+              <div className="flex flex-col gap-1 shrink-0">
+                <button onClick={() => onEditar(r.id)} className={`${CLS.btnGhost} text-xs`}>
+                  Editar e reenviar
+                </button>
+                <button
+                  onClick={() => { if (confirm("Remover este registro?")) onDelete(r.id); }}
+                  className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FDEAEA] text-[#A13B3B] hover:bg-[#fad3d3] transition"
+                >
+                  Remover
+                </button>
+              </div>
             )}
           </div>
         ))
@@ -98,16 +116,18 @@ export const TabMeusRegistros: React.FC<MeusRegistrosProps> = ({
         <div>
           <h2 className="text-lg font-bold text-[#1C2B3A]">Meus Registros</h2>
           <p className="text-xs text-[#5A7184] mt-0.5">
-            {loadingData ? "Carregando…" : `${registros.length} registro(s) encontrado(s)`}
+            {loadingData ? "Carregando…" : `${filtrados.length} registro(s) encontrado(s)${filtroEquipe ? ` — equipe: ${filtroEquipe}` : ""}`}
           </p>
         </div>
-        <div className="min-w-[240px]">
-          <label className={CLS.label}>Filtrar por equipe</label>
-          <select value={filtroEquipe} onChange={(e) => setFiltroEquipe(e.target.value)} className={CLS.input}>
-            <option value="">Todas as equipes</option>
-            {EQUIPES.map((e) => <option key={e} value={e}>{e}</option>)}
-          </select>
-        </div>
+        {isSuperUser && (
+          <div className="min-w-[240px]">
+            <label className={CLS.label}>Filtrar por equipe</label>
+            <select value={filtroEquipe} onChange={(e) => setFiltroEquipe(e.target.value)} className={CLS.input}>
+              <option value="">Todas as equipes</option>
+              {todasEquipes.map((e) => <option key={e} value={e}>{e}</option>)}
+            </select>
+          </div>
+        )}
       </div>
 
       {loadingData ? (
@@ -123,11 +143,25 @@ export const TabMeusRegistros: React.FC<MeusRegistrosProps> = ({
             <div className="mt-2 space-y-2">
               {!pendente.length ? <p className="text-xs text-[#5A7184]">Nenhum pendente.</p>
                 : pendente.map((r) => (
-                  <div key={r.id} className={`${CLS.cardInner} p-3`}>
-                    <b className="block text-sm break-words">{r.nome}</b>
-                    <div className="flex gap-2 flex-wrap items-center text-xs text-[#5A7184] mt-1">
-                      <StatusBadge status={r.activityStatus} />
-                      <span className="break-words">{r.indicador}</span>
+                  <div key={r.id} className={`${CLS.cardInner} p-3 flex justify-between items-start gap-3`}>
+                    <div className="min-w-0">
+                      <b className="block text-sm break-words">{r.nome}</b>
+                      <div className="flex gap-2 flex-wrap items-center text-xs text-[#5A7184] mt-1">
+                        <StatusBadge status={r.activityStatus} />
+                        <span className="text-[#1A4F7A] font-semibold">{r.equipe}</span>
+                        <span className="break-words">· {r.indicador}</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col gap-1 shrink-0">
+                      <button onClick={() => onEditar(r.id)} className={`${CLS.btnGhost} text-xs`}>
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => { if (confirm("Remover este registro?")) onDelete(r.id); }}
+                        className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FDEAEA] text-[#A13B3B] hover:bg-[#fad3d3] transition"
+                      >
+                        Remover
+                      </button>
                     </div>
                   </div>
                 ))
@@ -353,7 +387,17 @@ export const TabResultadosEquipe: React.FC<ResultadosEquipeProps> = ({
           ))}
           <tr className="bg-[#1A4F7A] text-white font-bold">
             <td className="p-3 rounded-bl-lg text-sm">Total</td>
-            {COLS.map(({ key, fmt }) => <td key={key} className="p-3 text-sm">{fmt(totais[key])}</td>)}
+            {COLS.map(({ key, fmt }) => (
+              <td key={key} className="p-3 text-sm">
+                <button
+                  onClick={() => onOpenModal(key, "")}
+                  disabled={!totais[key]}
+                  className="font-extrabold underline disabled:no-underline disabled:opacity-60 text-white text-sm"
+                >
+                  {fmt(totais[key])}
+                </button>
+              </td>
+            ))}
           </tr>
         </tbody>
       </TableWrap>
@@ -373,7 +417,7 @@ export const TabResultadosEquipe: React.FC<ResultadosEquipeProps> = ({
 
     {/* Ações */}
     <div className={`${CLS.card} p-4 flex flex-wrap gap-3 items-center`}>
-      <button onClick={onExportCsv} className={CLS.btnGhost}>⬇ Baixar CSV</button>
+      <button onClick={onExportCsv} className={CLS.btnGhost}>⬇ Exportar CSV</button>
       {isSuperUser && (
         <button
           onClick={onExportSheets}
@@ -406,9 +450,10 @@ const TABELA1_LINHAS: {
 interface SinteseCiatenProps {
   totais: Record<IndicadorKey, number>;
   usdTotal: number;
-  onExportCsv: () => void;           // CSV Tabela 1
-  onExportTabela2Csv: () => void;    // CSV Tabela 2
-  onExportRegistrosCsv: () => void;  // CSV Registros
+  onOpenModal: (key: IndicadorKey, equipe: string) => void;
+  onExportCsv: () => void;
+  onExportTabela2Csv: () => void;
+  onExportRegistrosCsv: () => void;
   onExportSheets: (target: "tabela1" | "tabela2" | "registros") => void;
   sheetsExportStatus: Record<string, "idle" | "loading" | "success" | "error">;
   sheetsExportError: Record<string, string | null>;
@@ -425,7 +470,7 @@ const SheetsBtn: React.FC<{ label: string; status: "idle"|"loading"|"success"|"e
 );
 
 export const TabResultadosCiaten: React.FC<SinteseCiatenProps> = ({
-  totais, usdTotal, onExportCsv, onExportTabela2Csv, onExportRegistrosCsv,
+  totais, usdTotal, onOpenModal, onExportCsv, onExportTabela2Csv, onExportRegistrosCsv,
   onExportSheets, sheetsExportStatus, sheetsExportError, isSuperUser,
 }) => {
   const ano = new Date().getFullYear();
@@ -456,7 +501,16 @@ export const TabResultadosCiaten: React.FC<SinteseCiatenProps> = ({
                 <Td className="font-bold text-[#1C2B3A] min-w-[260px]">{indicador}</Td>
                 <TdWrap className="text-[#5A7184] min-w-[240px]">{mede}</TdWrap>
                 <TdWrap className="text-[#5A7184] min-w-[240px]">{calculo}</TdWrap>
-                <Td className="font-bold text-[#1A4F7A] min-w-[160px]">{formatResult(totais, usdTotal)}</Td>
+                <Td className="min-w-[160px]">
+                  <button
+                    onClick={() => totais[key] > 0 ? onOpenModal(key, "") : undefined}
+                    disabled={totais[key] === 0}
+                    className="font-bold text-[#1A4F7A] underline disabled:no-underline disabled:text-[#5A7184] text-left hover:text-[#0F3254] transition"
+                    title={totais[key] > 0 ? "Clique para ver os registros" : "Sem registros"}
+                  >
+                    {formatResult(totais, usdTotal)}
+                  </button>
+                </Td>
               </tr>
             ))}
           </tbody>
@@ -514,37 +568,76 @@ interface ModalProps {
 
 export const ModalDetalhes: React.FC<ModalProps> = ({ modalData, registrosModal, onClose }) => {
   if (!modalData) return null;
+  const ano = new Date().getFullYear();
+  const titulo = modalData.equipe
+    ? `${modalData.equipe} — ${INDICADORES[modalData.key]}`
+    : `CIATEN ${ano} — ${INDICADORES[modalData.key]}`;
+
   return (
     <div className="fixed inset-0 bg-[#0F2332]/50 flex items-center justify-center p-4 z-50">
-      <div className="bg-white border border-[#D6E2EE] rounded-2xl max-w-2xl w-full max-h-[82vh] overflow-y-auto p-6 shadow-2xl">
-        <div className="flex justify-between items-start gap-3 mb-4">
+      <div className="bg-white border border-[#D6E2EE] rounded-2xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl">
+        {/* Header */}
+        <div className="flex justify-between items-start gap-3 p-6 border-b border-[#D6E2EE]">
           <div className="min-w-0">
-            <h2 className="text-lg font-bold text-[#1C2B3A] break-words">{INDICADORES[modalData.key]}</h2>
-            <p className="text-xs text-[#5A7184] mt-0.5">
-              {modalData.equipe ? `${modalData.equipe} • ` : `CIATEN ${new Date().getFullYear()} • `}
-              {registrosModal.length} registro(s) aprovados
+            <h2 className="text-base font-bold text-[#1C2B3A] break-words leading-snug">{titulo}</h2>
+            <p className="text-xs text-[#5A7184] mt-1">
+              {registrosModal.length} registro{registrosModal.length !== 1 ? "s" : ""} aprovado{registrosModal.length !== 1 ? "s" : ""}
+              {modalData.equipe ? "" : " em todas as equipes"}
             </p>
           </div>
-          <button onClick={onClose} className={`${CLS.btnSecondary} text-sm shrink-0`}>Fechar</button>
+          <button onClick={onClose} className={`${CLS.btnSecondary} text-sm shrink-0`}>✕ Fechar</button>
         </div>
-        <div className="space-y-2">
-          {!registrosModal.length
-            ? <p className="text-center py-6 text-[#5A7184]">Nenhum registro aprovado.</p>
-            : registrosModal.map((r) => (
-              <div key={r.id} className={`${CLS.cardInner} p-3 space-y-1`}>
-                <b className="block text-sm break-words">{r.nome}</b>
-                <div className="text-xs text-[#5A7184] flex flex-wrap gap-2">
-                  <span>{r.equipe}</span>
-                  {r.tipo && <span>• {r.tipo}</span>}
-                  <span>• {r.statusAtividade || "Publicado"}</span>
-                  {r.valorAprovado && <span>• {Number(r.valorAprovado).toLocaleString("pt-BR", { style: "currency", currency: r.moeda || "BRL" })}</span>}
-                  {r.alcance && <span>• Alcance: {Number(r.alcance).toLocaleString("pt-BR")}</span>}
+
+        {/* Body */}
+        <div className="overflow-y-auto p-6 space-y-3">
+          {!registrosModal.length ? (
+            <p className="text-center py-8 text-[#5A7184]">Nenhum registro aprovado nesta categoria.</p>
+          ) : registrosModal.map((r, idx) => (
+            <div key={r.id} className="border border-[#D6E2EE] rounded-xl p-4 hover:bg-[#F5F7FA] transition space-y-2">
+              {/* Número + nome */}
+              <div className="flex items-start gap-3">
+                <span className="shrink-0 w-7 h-7 rounded-full bg-[#1A4F7A] text-white text-xs font-bold flex items-center justify-center">
+                  {idx + 1}
+                </span>
+                <div className="min-w-0">
+                  <b className="block text-sm text-[#1C2B3A] break-words">{r.nome}</b>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-1">
+                    {!modalData.equipe && <span className="text-xs font-semibold text-[#1A4F7A]">{r.equipe}</span>}
+                    {r.tipo && <span className="text-xs text-[#5A7184]">Tipo: {r.tipo}</span>}
+                    {r.statusAtividade && <span className="text-xs text-[#5A7184]">Status: {r.statusAtividade}</span>}
+                    {r.dataRealizacao && <span className="text-xs text-[#5A7184]">Data: {r.dataRealizacao}</span>}
+                  </div>
                 </div>
-                {r.financiador && <p className="text-xs text-[#5A7184]">Financiador: {r.financiador}</p>}
-                {r.evidencia && <a href={r.evidencia} target="_blank" rel="noreferrer" className="text-xs text-[#1A4F7A] font-bold break-all">Abrir evidência ↗</a>}
               </div>
-            ))
-          }
+
+              {/* Detalhes extras */}
+              <div className="pl-10 space-y-1">
+                {r.participantes && (
+                  <p className="text-xs text-[#5A7184]">👥 Participantes: <span className="text-[#1C2B3A]">{r.participantes}</span></p>
+                )}
+                {r.canal && (
+                  <p className="text-xs text-[#5A7184]">📢 Canal: <span className="text-[#1C2B3A]">{r.canal}</span></p>
+                )}
+                {r.alcance && (
+                  <p className="text-xs text-[#5A7184]">📊 Alcance: <span className="text-[#1C2B3A]">{Number(r.alcance).toLocaleString("pt-BR")} interações</span></p>
+                )}
+                {r.financiador && (
+                  <p className="text-xs text-[#5A7184]">🏦 Financiador: <span className="text-[#1C2B3A]">{r.financiador}</span></p>
+                )}
+                {r.valorAprovado && (
+                  <p className="text-xs text-[#5A7184]">💰 Valor: <span className="text-[#1C2B3A] font-semibold">
+                    {Number(r.valorAprovado).toLocaleString("pt-BR", { style: "currency", currency: r.moeda || "BRL" })}
+                  </span></p>
+                )}
+                {r.evidencia && (
+                  <a href={r.evidencia} target="_blank" rel="noreferrer"
+                    className="inline-flex items-center gap-1 text-xs text-[#1A4F7A] font-bold hover:underline break-all">
+                    🔗 Abrir evidência ↗
+                  </a>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
       </div>
     </div>
