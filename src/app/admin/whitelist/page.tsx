@@ -52,7 +52,7 @@ export default function WhitelistPage() {
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-semibold rounded-t-xl transition ${tab === t ? "bg-[#1A4F7A] text-white" : "text-[#5A7184] hover:text-[#1A4F7A]"}`}
           >
-            {t === "users" ? "👥 Usuários" : "🏷️ Equipes"}
+            {t === "users" ? "Usuários" : "Equipes"}
           </button>
         ))}
       </div>
@@ -157,20 +157,6 @@ function UsersPanel() {
         )}
       </div>
 
-      {/* Pré-aprovação */}
-      <form onSubmit={preRegister} className="flex gap-2">
-        <input
-          type="email"
-          placeholder="Pré-aprovar um e-mail (ex: novo@empresa.com)"
-          className="flex-1 border border-[#D6E2EE] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4F7A]/30"
-          value={newEmail}
-          onChange={(e) => setNewEmail(e.target.value)}
-        />
-        <button className="bg-[#1A4F7A] text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-[#0F3254] transition">
-          Pré-aprovar
-        </button>
-      </form>
-
       {/* Lista */}
       {loading ? (
         <p className="text-sm text-[#5A7184]">Carregando...</p>
@@ -186,40 +172,50 @@ function UsersPanel() {
               <p className="p-6 text-center text-sm text-[#5A7184]">
                 {search ? "Nenhum usuário encontrado." : "Nenhum usuário cadastrado."}
               </p>
-            ) : filtered.map((u) => (
-              <div key={u.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="font-semibold text-[#1C2B3A] truncate">{u.name ?? "(sem login ainda)"}</p>
-                  <p className="text-xs text-[#5A7184] truncate">{u.email}</p>
+            ) : (
+              <>
+                {/* Cabeçalho das colunas */}
+                <div className="px-4 py-2 grid grid-cols-[1fr_auto] border-b border-[#D6E2EE] bg-[#F5F7FA]">
+                  <span className="text-xs font-semibold text-[#5A7184]">Usuário</span>
+                  <div className="flex items-center gap-2 text-xs font-semibold text-[#5A7184]">
+                    <span className="w-16 text-center">Status</span>
+                    <span className="w-24 text-center">Ação</span>
+                    <span className="w-28 text-center">Tipo</span>
+                    <span className="w-32 text-center">Equipe</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  <span className={`text-xs font-medium px-2 py-1 rounded-full ${statusStyles[u.status]}`}>
-                    {statusLabel[u.status]}
-                  </span>
-                  <select
-                    value={u.status}
-                    onChange={(e) => updateUser(u.id, { status: e.target.value as UserRow["status"] })}
-                    className="text-xs border border-[#D6E2EE] rounded-lg px-2 py-1"
-                  >
-                    <option value="PENDING">Pendente</option>
-                    <option value="APPROVED">Aprovar</option>
-                    <option value="BLOCKED">Bloquear</option>
-                  </select>
-                  <select
-                    value={u.role}
-                    onChange={(e) => updateUser(u.id, { role: e.target.value as UserRow["role"] })}
-                    className="text-xs border border-[#D6E2EE] rounded-lg px-2 py-1"
-                  >
-                    <option value="USER">Usuário</option>
-                    <option value="SUPER_USER">Administrador</option>
-                  </select>
-                  {u.status === "APPROVED" && (
-                    <div className="flex flex-col gap-0.5">
-                      <label className="text-[10px] font-semibold text-[#5A7184]">Equipe</label>
+                {filtered.map((u) => (
+                  <div key={u.id} className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-[#1C2B3A] truncate">{u.name ?? "(sem login ainda)"}</p>
+                      <p className="text-xs text-[#5A7184] truncate">{u.email}</p>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-xs font-medium px-2 py-1 rounded-full w-16 text-center ${statusStyles[u.status]}`}>
+                        {statusLabel[u.status]}
+                      </span>
                       <select
-                        value={teams.find((t) => t.membros.some((m: TeamMemberRow) => m.userId === u.id))?.id ?? ""}
+                        value={u.status}
+                        onChange={(e) => updateUser(u.id, { status: e.target.value as UserRow["status"] })}
+                        className="text-xs border border-[#D6E2EE] rounded-lg px-2 py-1 w-24"
+                      >
+                        <option value="PENDING">Pendente</option>
+                        <option value="APPROVED">Aprovar</option>
+                        <option value="BLOCKED">Bloquear</option>
+                      </select>
+                      <select
+                        value={u.role}
+                        onChange={(e) => updateUser(u.id, { role: e.target.value as UserRow["role"] })}
+                        className="text-xs border border-[#D6E2EE] rounded-lg px-2 py-1 w-28"
+                      >
+                        <option value="USER">Usuário</option>
+                        <option value="SUPER_USER">Administrador</option>
+                      </select>
+                      <select
+                        value={u.status === "APPROVED" ? (teams.find((t) => t.membros.some((m: TeamMemberRow) => m.userId === u.id))?.id ?? "") : ""}
                         onChange={(e) => assignTeam(u.id, e.target.value)}
-                        className="text-xs border border-[#D6E2EE] rounded-lg px-2 py-1"
+                        disabled={u.status !== "APPROVED"}
+                        className="text-xs border border-[#D6E2EE] rounded-lg px-2 py-1 w-32 disabled:opacity-30 disabled:cursor-not-allowed"
                       >
                         <option value="">Sem equipe</option>
                         {teams.map((t) => (
@@ -227,10 +223,10 @@ function UsersPanel() {
                         ))}
                       </select>
                     </div>
-                  )}
-                </div>
-              </div>
-            ))}
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </>
       )}
