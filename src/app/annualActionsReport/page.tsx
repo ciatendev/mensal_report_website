@@ -93,6 +93,7 @@ export default function AnnualActionsReportPage() {
             sheetsStatus={r.sheetsExportStatus["tabela2"] ?? "idle"}
             sheetsError={r.sheetsExportError["tabela2"] ?? null}
             isSuperUser={isSuperUser}
+            dbEquipes={r.dbEquipes}
           />
         )}
 

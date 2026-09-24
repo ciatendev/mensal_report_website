@@ -16,7 +16,7 @@
  */
 import { useState, useMemo, useCallback, useEffect } from "react";
 import {
-  DbRegistro, IndicadorKey, INDICADORES, EQUIPES, contabiliza,
+  DbRegistro, IndicadorKey, INDICADORES, contabiliza,
 } from "../forms/domain";
 
 export type TabId = "registro" | "meus-registros" | "validacao" | "resultados-equipe" | "resultados-ciaten";
@@ -39,6 +39,9 @@ export function useAnnualReport() {
   // Todos os aprovados (para tabelas de resultado)
   const [aprovados,     setAprovados]     = useState<ApprovedRecord[]>([]);
   const [loadingAprov,  setLoadingAprov]  = useState(false);
+
+  // Equipes criadas no banco (para o SUPER_USER selecionar e para o resumo)
+  const [dbEquipes, setDbEquipes] = useState<string[]>([]);
 
   // Formulário
   const [editingId,      setEditingId]      = useState<string | null>(null);
@@ -136,7 +139,7 @@ export function useAnnualReport() {
   // ─── Computed: resumo por equipe (usa `aprovados`) ────────────────────────
   const resumo = useMemo(() => {
     const out: Record<string, Record<IndicadorKey, number>> = {};
-    EQUIPES.forEach((e) => {
+    dbEquipes.forEach((e) => {
       out[e] = { politicas: 0, publicacoes: 0, cursos: 0, tecnologia: 0, divulgacao: 0, recursos: 0 };
     });
     aprovados.forEach((r) => {
@@ -290,7 +293,7 @@ export function useAnnualReport() {
       switch (key) {
         case "politicas":   return `${totais.politicas} documento${totais.politicas !== 1 ? "s" : ""}`;
         case "publicacoes": return `${totais.publicacoes} publicaç${totais.publicacoes !== 1 ? "ões" : "ão"}`;
-        case "cursos": return totais.cursos !== 1 ? `${totais.cursos} ações formativas` : "1 ação formativa";
+        case "cursos":      return `${totais.cursos} ação${totais.cursos !== 1 ? "ões" : ""} formativa${totais.cursos !== 1 ? "s" : ""}`;
         case "tecnologia":  return `${totais.tecnologia} projeto${totais.tecnologia !== 1 ? "s" : ""} tecnológico${totais.tecnologia !== 1 ? "s" : ""}`;
         case "divulgacao":  return totais.divulgacao > 0 ? `${totais.divulgacao.toLocaleString("pt-BR")} interações` : "a ser calculado";
         case "recursos": {
@@ -328,7 +331,7 @@ export function useAnnualReport() {
     const q    = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
     const fmtBrl = (v: number) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     const cols = ["Equipe / Núcleo", "Doc. Políticas", "Publicações", "Cursos/Eventos", "Tecnologias", "Alcance", "Recursos BRL"];
-    const rows = (EQUIPES as readonly string[]).map((eq) => [
+    const rows = dbEquipes.map((eq) => [
       eq,
       resumo[eq]?.politicas   ?? 0,
       resumo[eq]?.publicacoes ?? 0,
@@ -418,8 +421,6 @@ export function useAnnualReport() {
 
   // Equipe do usuário logado (null = SUPER_USER ou sem equipe)
   const [userTeam, setUserTeam] = useState<{ id: string; nome: string } | null | undefined>(undefined);
-  // Equipes criadas no banco (para o SUPER_USER selecionar)
-  const [dbEquipes, setDbEquipes] = useState<string[]>([]);
 
   const exportToSheets = useCallback(async (target: "tabela1" | "tabela2" | "registros") => {
     setSheetsExportStatus((prev) => ({ ...prev, [target]: "loading" }));

@@ -215,9 +215,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (!canEdit) {
       return NextResponse.json({ error: "Sem permissão para editar." }, { status: 403 });
     }
-    if (!["PENDING", "ADJUSTMENT_NEEDED"].includes(record.activityStatus)) {
-      return NextResponse.json({ error: "Registro não pode ser editado neste estado." }, { status: 422 });
-    }
+    // Qualquer status pode ser editado (volta para PENDING para revalidação)
     const { action: _a, ...fields } = parsed.data;
     const updated = await prisma.activityRecord.update({
       where: { id: params.id },
@@ -318,9 +316,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: { id: stri
     const isTeamMember = team?.membros.some((m) => m.userId === user.id) ?? false;
     if (!isTeamMember) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
-  if (!["PENDING", "ADJUSTMENT_NEEDED"].includes(record.activityStatus)) {
-    return NextResponse.json({ error: "Só é possível excluir registros pendentes ou em ajuste." }, { status: 422 });
-  }
+  // Qualquer status pode ser removido (SUPER_USER ou membro da equipe)
 
   await prisma.activityRecord.delete({ where: { id: params.id } });
   return NextResponse.json({ success: true });

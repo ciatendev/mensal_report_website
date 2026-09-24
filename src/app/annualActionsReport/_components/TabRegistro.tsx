@@ -4,7 +4,7 @@
 import React from "react";
 import { signOut } from "next-auth/react";
 import { CLS } from "@/styles/tokens";
-import { EQUIPES, INDICADORES, TIPOS, STATUSES, CANAIS, IndicadorKey } from "../forms/domain";
+import { INDICADORES, TIPOS, STATUSES, CANAIS, IndicadorKey } from "../forms/domain";
 import { FormPoliticas, FormPublications, FormCourses, FormTechnology, FormDisclouse, FormFeatures } from "../forms/SubForms";
 import type { SubmitStatus } from "../_hooks/useAnnualReport";
 
@@ -95,8 +95,7 @@ export const TabRegistro: React.FC<Props> = (p) => {
               /* SUPER_USER: pode escolher qualquer equipe */
               <select value={p.equipeSel} onChange={(e) => p.setEquipeSel(e.target.value)} required className={CLS.input}>
                 <option value="">Selecione</option>
-                {/* Combina estáticas + criadas no banco (sem duplicatas) */}
-                {Array.from(new Set([...EQUIPES, ...p.dbEquipes])).map((eq) => (
+                {p.dbEquipes.map((eq) => (
                   <option key={eq} value={eq}>{eq}</option>
                 ))}
               </select>
@@ -134,6 +133,7 @@ export const TabRegistro: React.FC<Props> = (p) => {
             {p.submitStatus === "loading" ? "Salvando…" : p.editingId ? "Reenviar para validação" : "Enviar registro"}
           </button>
           <button type="button" onClick={p.onReset} className={CLS.btnSecondary}>Limpar</button>
+          <button type="button" onClick={() => signOut({ callbackUrl: "/" })} className={CLS.btnGhost}>Sair</button>
         </div>
       </div>
     </form>

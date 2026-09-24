@@ -52,7 +52,7 @@ export default function WhitelistPage() {
             onClick={() => setTab(t)}
             className={`px-4 py-2 text-sm font-semibold rounded-t-xl transition ${tab === t ? "bg-[#1A4F7A] text-white" : "text-[#5A7184] hover:text-[#1A4F7A]"}`}
           >
-            {t === "users" ? "Usuários" : "Equipes"}
+            {t === "users" ? "👥 Usuários" : "🏷️ Equipes"}
           </button>
         ))}
       </div>
@@ -66,6 +66,7 @@ export default function WhitelistPage() {
 // ─── Painel de Usuários ───────────────────────────────────────────────────────
 function UsersPanel() {
   const [users,    setUsers]    = useState<UserRow[]>([]);
+  const [teams,    setTeams]    = useState<Team[]>([]);
   const [loading,  setLoading]  = useState(true);
   const [newEmail, setNewEmail] = useState("");
   const [search,   setSearch]   = useState("");
@@ -73,9 +74,9 @@ function UsersPanel() {
   const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const res  = await fetch("/api/whitelist");
-      const data = res.ok ? await res.json() : [];
-      setUsers(data);
+      const [ur, tr] = await Promise.all([fetch("/api/whitelist"), fetch("/api/teams")]);
+      setUsers(ur.ok ? await ur.json() : []);
+      setTeams(tr.ok ? await tr.json() : []);
     } catch (e) {
       console.error("Erro ao carregar usuários:", e);
     } finally {
@@ -91,6 +92,29 @@ function UsersPanel() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId, ...patch }),
     });
+    loadUsers();
+  }
+
+  async function assignTeam(userId: string, teamId: string) {
+    // Remove de todas as equipes primeiro
+    for (const t of teams) {
+      const isMember = t.membros.some((m: TeamMemberRow) => m.userId === userId);
+      if (isMember) {
+        await fetch(`/api/teams/${t.id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ removeMembers: [userId] }),
+        });
+      }
+    }
+    // Adiciona à nova equipe (se não for "sem equipe")
+    if (teamId) {
+      await fetch(`/api/teams/${teamId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ addMembers: [userId] }),
+      });
+    }
     loadUsers();
   }
 
@@ -123,7 +147,7 @@ function UsersPanel() {
         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A7184] text-sm">🔍</span>
         <input
           type="text"
-          placeholder="Buscar por nome ou e-mail"
+          placeholder="Buscar por nome ou e-mail..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="w-full border border-[#D6E2EE] rounded-xl pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4F7A]/30"
@@ -132,6 +156,20 @@ function UsersPanel() {
           <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#5A7184] hover:text-[#1C2B3A] text-xs">✕</button>
         )}
       </div>
+
+      {/* Pré-aprovação */}
+      <form onSubmit={preRegister} className="flex gap-2">
+        <input
+          type="email"
+          placeholder="Pré-aprovar um e-mail (ex: novo@empresa.com)"
+          className="flex-1 border border-[#D6E2EE] rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#1A4F7A]/30"
+          value={newEmail}
+          onChange={(e) => setNewEmail(e.target.value)}
+        />
+        <button className="bg-[#1A4F7A] text-white text-sm font-semibold px-4 py-2 rounded-xl hover:bg-[#0F3254] transition">
+          Pré-aprovar
+        </button>
+      </form>
 
       {/* Lista */}
       {loading ? (
@@ -175,6 +213,21 @@ function UsersPanel() {
                     <option value="USER">Usuário</option>
                     <option value="SUPER_USER">Administrador</option>
                   </select>
+                  {u.status === "APPROVED" && (
+                    <div className="flex flex-col gap-0.5">
+                      <label className="text-[10px] font-semibold text-[#5A7184]">Equipe</label>
+                      <select
+                        value={teams.find((t) => t.membros.some((m: TeamMemberRow) => m.userId === u.id))?.id ?? ""}
+                        onChange={(e) => assignTeam(u.id, e.target.value)}
+                        className="text-xs border border-[#D6E2EE] rounded-lg px-2 py-1"
+                      >
+                        <option value="">Sem equipe</option>
+                        {teams.map((t) => (
+                          <option key={t.id} value={t.id}>{t.nome}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -385,7 +438,7 @@ function EditTeamPanel({ team, allUsers, saving, onSaveName, onToggleMember, onC
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#5A7184] text-xs">🔍</span>
           <input
             type="text"
-            placeholder="Buscar por nome ou e-mail"
+            placeholder="Buscar por nome ou e-mail..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full border border-[#D6E2EE] rounded-xl pl-8 pr-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-[#1A4F7A]/30"
