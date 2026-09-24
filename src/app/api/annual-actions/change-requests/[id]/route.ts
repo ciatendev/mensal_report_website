@@ -59,7 +59,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
       try { fields = JSON.parse(changeRequest.editFields); } catch { /* ignore */ }
       await prisma.activityRecord.update({
         where: { id: changeRequest.recordId },
-        data: { ...fields, activityStatus: "PENDING", ultimaEdicao: new Date() },
+        data: { ...fields, activityStatus: "ADJUSTMENT_NEEDED", ultimaEdicao: new Date() },
+      });
+    } else if (changeRequest.type === "EDIT") {
+      // Sem editFields: apenas libera para o usuário editar e reenviar
+      await prisma.activityRecord.update({
+        where: { id: changeRequest.recordId },
+        data: { activityStatus: "ADJUSTMENT_NEEDED", ultimaEdicao: new Date() },
       });
     }
   }

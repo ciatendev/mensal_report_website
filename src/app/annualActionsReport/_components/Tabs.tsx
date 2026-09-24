@@ -82,10 +82,10 @@ function ChangeRequestButtons({
   if (mode === "idle") {
     return (
       <>
-        <button onClick={() => setMode("edit")} className={`${CLS.btnGhost} text-xs`}>✏ Solicitar edição</button>
+        <button onClick={() => setMode("edit")} className={`${CLS.btnGhost} text-xs`}>Solicitar edição</button>
         <button onClick={() => setMode("delete")}
           className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FDEAEA] text-[#A13B3B] hover:bg-[#fad3d3] transition">
-          🗑 Solicitar exclusão
+          Solicitar exclusão
         </button>
       </>
     );
@@ -571,7 +571,7 @@ const TABELA1_LINHAS: {
 }[] = [
   { key: "politicas",   indicador: "Documentos de recomendação para políticas públicas",   mede: "Capacidade do CIATEN de produzir evidências aplicáveis à tomada de decisão.", calculo: "Contagem de documentos concluídos e validados.", formatResult: (t) => `${t.politicas} documento${t.politicas !== 1 ? "s" : ""}` },
   { key: "publicacoes", indicador: "Publicações científicas",                              mede: "Produção de conhecimento técnico-científico.", calculo: "Soma de artigos, capítulos, livros, pré-prints e aceitações.", formatResult: (t) => `${t.publicacoes} publicaç${t.publicacoes !== 1 ? "ões" : "ão"}` },
-  { key: "cursos",      indicador: "Cursos, eventos e ações de formação",                  mede: "Atividades formativas que qualificam profissionais.", calculo: "Número total de cursos, oficinas, workshops e eventos realizados.", formatResult: (t) => `${t.cursos} ação${t.cursos !== 1 ? "ões" : ""} formativa${t.cursos !== 1 ? "s" : ""}` },
+  { key: "cursos",      indicador: "Cursos, eventos e ações de formação",                  mede: "Atividades formativas que qualificam profissionais.", calculo: "Número total de cursos, oficinas, workshops e eventos realizados.", formatResult: (t) => `${t.cursos} ${t.cursos !== 1 ? "ações" : "ação"} formativa${t.cursos !== 1 ? "s" : ""}` },
   { key: "tecnologia",  indicador: "Projetos de inovação e desenvolvimento tecnológico",   mede: "Iniciativas de criação ou aprimoramento de tecnologias.", calculo: "Projetos em fase de piloto ou implementados.", formatResult: (t) => `${t.tecnologia} projeto${t.tecnologia !== 1 ? "s" : ""} tecnológico${t.tecnologia !== 1 ? "s" : ""}` },
   { key: "divulgacao",  indicador: "Alcance e engajamento nas redes sociais",              mede: "Impacto e visibilidade do CIATEN na comunicação.", calculo: "Soma de visualizações, acessos e interações.", formatResult: (t) => t.divulgacao > 0 ? `${t.divulgacao.toLocaleString("pt-BR")} interações` : "a ser calculado" },
   { key: "recursos",    indicador: "Captação de recursos institucionais",                  mede: "Capacidade de mobilização financeira.", calculo: "Soma de recursos aprovados via editais, convênios e cooperações.", formatResult: (t, usd) => { const brl = t.recursos > 0 ? t.recursos.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : ""; const u = usd > 0 ? `US$ ${usd.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : ""; return [brl, u].filter(Boolean).join(" + ") || "R$ 0,00"; } },
