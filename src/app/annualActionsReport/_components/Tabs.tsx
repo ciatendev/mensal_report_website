@@ -49,9 +49,10 @@ interface MeusRegistrosProps {
   setFiltroEquipe: (v: string) => void;
   onEditar: (id: string) => void;
   onDelete: (id: string) => void;
+  onRequestChange: (recordId: string, type: "EDIT" | "DELETE", nota?: string) => void;
   isSuperUser: boolean;
   userTeamNome: string | null;
-  dbEquipes?: string[];  // equipes criadas no banco para o filtro
+  dbEquipes?: string[];
 }
 
 // ─── Formulário inline de solicitação de alteração ───────────────────────────
