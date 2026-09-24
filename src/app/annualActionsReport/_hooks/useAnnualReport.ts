@@ -23,6 +23,20 @@ export type TabId = "registro" | "meus-registros" | "validacao" | "resultados-eq
 export type SubmitStatus = "idle" | "loading" | "success" | "error";
 
 // Shape mínimo retornado pelo endpoint /summary (sem dados do autor)
+export type ChangeRequestRow = {
+  id: string;
+  recordId: string;
+  type: "EDIT" | "DELETE";
+  status: "PENDING" | "APPROVED" | "REJECTED";
+  nota?: string | null;
+  reviewNote?: string | null;
+  editFields?: string | null;
+  createdAt: string;
+  requestedBy: { id: string; name: string | null; email: string };
+  reviewedBy?: { id: string; name: string | null } | null;
+  record: { id: string; nome: string; equipe: string; indicador: string; activityStatus: string; syncedToSheets: boolean };
+};
+
 export type ApprovedRecord = Pick<DbRegistro,
   "id" | "equipe" | "indicadorKey" | "indicador" | "nome" | "tipo" |
   "statusAtividade" | "evidencia" | "alcance" | "valorAprovado" | "moeda" |
@@ -418,6 +432,7 @@ export function useAnnualReport() {
   // ─── Tipo dos estados de exportação Sheets (por target) ──────────────────
   const [sheetsExportStatus, setSheetsExportStatus] = useState<Record<string, SubmitStatus>>({});
   const [sheetsExportError,  setSheetsExportError]  = useState<Record<string, string | null>>({});
+  const [changeRequests,     setChangeRequests]     = useState<ChangeRequestRow[]>([]);
 
   // Equipe do usuário logado (null = SUPER_USER ou sem equipe)
   const [userTeam, setUserTeam] = useState<{ id: string; nome: string } | null | undefined>(undefined);
@@ -443,6 +458,52 @@ export function useAnnualReport() {
     }
   }, []);
 
+
+  const fetchChangeRequests = useCallback(async () => {
+    try {
+      const res = await fetch("/api/annual-actions/change-requests?pending=1");
+      if (res.ok) setChangeRequests(await res.json());
+    } catch (e) { console.error("change-requests fetch:", e); }
+  }, []);
+
+  useEffect(() => { fetchChangeRequests(); }, [fetchChangeRequests]);
+  useEffect(() => {
+    if (activeTab === "validacao") fetchChangeRequests();
+  }, [activeTab, fetchChangeRequests]);
+
+  const requestChange = useCallback(async (
+    recordId: string,
+    type: "EDIT" | "DELETE",
+    nota?: string
+  ) => {
+    const res = await fetch("/api/annual-actions/change-requests", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recordId, type, nota }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error ?? "Erro ao criar solicitação.");
+    }
+    await fetchMeus();
+  }, [fetchMeus]);
+
+  const reviewChangeRequest = useCallback(async (
+    id: string,
+    decision: "APPROVED" | "REJECTED",
+    reviewNote?: string
+  ) => {
+    const res = await fetch(`/api/annual-actions/change-requests/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision, reviewNote }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      throw new Error(d.error ?? "Erro ao revisar solicitação.");
+    }
+    await Promise.all([fetchMeus(), fetchAprovados(), fetchChangeRequests()]);
+  }, [fetchMeus, fetchAprovados, fetchChangeRequests]);
 
   return {
     activeTab, setActiveTab,
@@ -489,5 +550,6 @@ export function useAnnualReport() {
     // Exportações unificadas para Sheets (via /api/annual-actions/export)
     exportToSheets, sheetsExportStatus, sheetsExportError,
     userTeam, dbEquipes,
+    changeRequests, requestChange, reviewChangeRequest, fetchChangeRequests,
   };
 }

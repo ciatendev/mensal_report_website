@@ -130,6 +130,8 @@ model User {
   activityRecords  ActivityRecord[] @relation("RecordAuthor")
   validatedRecords ActivityRecord[] @relation("RecordValidator")
   teamMemberships  TeamMember[]
+  changeRequests   ChangeRequest[] @relation("ChangeRequestor")
+  reviewedRequests ChangeRequest[] @relation("ChangeReviewer")
 
   @@map("users")
 }
@@ -270,6 +272,7 @@ model ActivityRecord {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   ultimaEdicao DateTime?
+  changeRequests ChangeRequest[]
 
   @@index([authorId])
   @@index([equipe])
@@ -305,4 +308,43 @@ model TeamMember {
   @@unique([teamId, userId])
   @@index([userId])
   @@map("team_members")
+}
+
+// ─── Solicitações de alteração ────────────────────────────────────────────────
+// Quando um usuário comum quer editar/excluir um registro já analisado,
+// cria uma solicitação que o SUPER_USER aprova ou rejeita.
+
+enum ChangeRequestType {
+  EDIT
+  DELETE
+}
+
+enum ChangeRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ChangeRequest {
+  id         String              @id @default(cuid())
+  recordId   String
+  record     ActivityRecord      @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  requestedById String
+  requestedBy   User             @relation("ChangeRequestor", fields: [requestedById], references: [id])
+  type       ChangeRequestType
+  status     ChangeRequestStatus @default(PENDING)
+  // Campos editados (somente para type=EDIT, JSON serializado)
+  editFields String?             @db.Text
+  nota       String?             @db.Text  // nota do solicitante
+  reviewNote String?             @db.Text  // resposta do SUPER_USER
+  reviewedById String?
+  reviewedBy   User?             @relation("ChangeReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  @@index([recordId])
+  @@index([requestedById])
+  @@index([status])
+  @@map("change_requests")
 }

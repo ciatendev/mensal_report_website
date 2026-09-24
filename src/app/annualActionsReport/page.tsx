@@ -11,8 +11,8 @@ import { IndicadorKey } from "./forms/domain";
 
 export default function AnnualActionsReportPage() {
   const r = useAnnualReport();
-  const { data: session } = useSession();
-  const isSuperUser = session?.user?.role === "SUPER_USER";
+  const { data: session, status: sessionStatus } = useSession();
+  const isSuperUser = sessionStatus === "authenticated" && session?.user?.role === "SUPER_USER";
 
   async function handleDelete(id: string) {
     const res = await fetch(`/api/annual-actions/records/${id}`, { method: "DELETE" });
@@ -62,6 +62,10 @@ export default function AnnualActionsReportPage() {
             setFiltroEquipe={r.setFiltroEquipe}
             onEditar={r.preencherEdicao}
             onDelete={handleDelete}
+            onRequestChange={async (recordId, type, nota) => {
+              try { await r.requestChange(recordId, type, nota); }
+              catch (e) { alert(e instanceof Error ? e.message : "Erro ao solicitar."); }
+            }}
             isSuperUser={isSuperUser}
             userTeamNome={r.userTeam?.nome ?? null}
             dbEquipes={r.dbEquipes}
@@ -80,6 +84,11 @@ export default function AnnualActionsReportPage() {
             ajusteError={r.ajusteError}
             setAjusteError={r.setAjusteError}
             onValidar={r.validarRegistro}
+            changeRequests={r.changeRequests}
+            onReviewChange={async (id, decision, note) => {
+              try { await r.reviewChangeRequest(id, decision, note); }
+              catch (e) { alert(e instanceof Error ? e.message : "Erro."); }
+            }}
           />
         )}
 

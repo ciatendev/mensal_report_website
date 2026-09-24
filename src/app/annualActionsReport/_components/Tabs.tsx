@@ -8,6 +8,7 @@ import {
   INDICADORES, INDICADOR_LABEL_CURTO, IndicadorKey,
   DbRegistro, ActivityStatus, STATUS_LABEL, contabiliza,
 } from "../forms/domain";
+import type { ChangeRequestRow } from "../_hooks/useAnnualReport";
 
 // ─── Shared table primitives ─────────────────────────────────────────────────
 const TableWrap: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -53,8 +54,76 @@ interface MeusRegistrosProps {
   dbEquipes?: string[];  // equipes criadas no banco para o filtro
 }
 
+// ─── Formulário inline de solicitação de alteração ───────────────────────────
+function ChangeRequestButtons({
+  recordId,
+  onRequest,
+}: {
+  recordId: string;
+  onRequest: (recordId: string, type: "EDIT" | "DELETE", nota?: string) => void;
+}) {
+  const [mode, setMode]     = React.useState<"idle" | "edit" | "delete">("idle");
+  const [nota, setNota]     = React.useState("");
+  const [sending, setSending] = React.useState(false);
+
+  async function submit() {
+    if (mode === "idle") return;
+    setSending(true);
+    try {
+      await onRequest(recordId, mode === "edit" ? "EDIT" : "DELETE", nota.trim() || undefined);
+      setMode("idle");
+      setNota("");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  if (mode === "idle") {
+    return (
+      <>
+        <button onClick={() => setMode("edit")} className={`${CLS.btnGhost} text-xs`}>✏ Solicitar edição</button>
+        <button onClick={() => setMode("delete")}
+          className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FDEAEA] text-[#A13B3B] hover:bg-[#fad3d3] transition">
+          🗑 Solicitar exclusão
+        </button>
+      </>
+    );
+  }
+
+  const isDelete = mode === "delete";
+  return (
+    <div className="w-56 space-y-2 border border-[#D6E2EE] rounded-xl p-3 bg-white shadow-sm">
+      <p className="text-xs font-bold text-[#1C2B3A]">
+        {isDelete ? "Solicitar exclusão" : "Solicitar edição"}
+      </p>
+      <p className="text-xs text-[#5A7184]">
+        {isDelete
+          ? "A exclusão será analisada pelo coordenador."
+          : "O coordenador receberá a solicitação para liberar a edição."}
+      </p>
+      <textarea
+        value={nota}
+        onChange={(e) => setNota(e.target.value)}
+        placeholder="Motivo (opcional)..."
+        rows={2}
+        className="w-full text-xs border border-[#D6E2EE] rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#1A4F7A]/30 resize-none"
+      />
+      <div className="flex gap-1.5">
+        <button onClick={submit} disabled={sending}
+          className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition disabled:opacity-50 ${isDelete ? "bg-[#A13B3B] text-white hover:bg-[#7e2e2e]" : "bg-[#1A4F7A] text-white hover:bg-[#0F3254]"}`}>
+          {sending ? "Enviando…" : "Confirmar"}
+        </button>
+        <button onClick={() => { setMode("idle"); setNota(""); }}
+          className="px-3 py-1.5 text-xs font-bold rounded-lg border border-[#D6E2EE] text-[#5A7184] hover:bg-[#F5F7FA] transition">
+          Cancelar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export const TabMeusRegistros: React.FC<MeusRegistrosProps> = ({
-  registros, loadingData, filtroEquipe, setFiltroEquipe, onEditar, onDelete,
+  registros, loadingData, filtroEquipe, setFiltroEquipe, onEditar, onDelete, onRequestChange,
   isSuperUser, userTeamNome, dbEquipes = [],
 }) => {
   const todasEquipes = dbEquipes;
@@ -172,13 +241,29 @@ export const TabMeusRegistros: React.FC<MeusRegistrosProps> = ({
             <summary className="cursor-pointer font-bold border-b border-[#D6E2EE] pb-1 text-sm select-none">Já analisados ({analisado.length})</summary>
             <div className="mt-2 space-y-2">
               {analisado.map((r) => (
-                <div key={r.id} className={`${CLS.cardInner} p-3`}>
-                  <b className="block text-sm break-words">{r.nome}</b>
-                  <div className="flex gap-2 flex-wrap items-center text-xs text-[#5A7184] mt-1">
-                    <StatusBadge status={r.activityStatus} />
-                    <span className="break-words">{r.indicador}</span>
+                <div key={r.id} className={`${CLS.cardInner} p-3 flex justify-between items-start gap-3`}>
+                  <div className="min-w-0">
+                    <b className="block text-sm break-words">{r.nome}</b>
+                    <div className="flex gap-2 flex-wrap items-center text-xs text-[#5A7184] mt-1">
+                      <StatusBadge status={r.activityStatus} />
+                      <span className="text-[#1A4F7A] font-semibold">{r.equipe}</span>
+                      <span className="break-words">· {r.indicador}</span>
+                    </div>
+                    {r.syncedToSheets && <span className="text-xs text-[#1B7F5A] mt-1 inline-block">✓ Sheets</span>}
                   </div>
-                  {r.syncedToSheets && <span className="text-xs text-[#1B7F5A] mt-1 inline-block">✓ Sheets</span>}
+                  <div className="flex flex-col gap-1 shrink-0">
+                    {isSuperUser ? (
+                      <>
+                        <button onClick={() => onEditar(r.id)} className={`${CLS.btnGhost} text-xs`}>Editar</button>
+                        <button onClick={() => { if (confirm("Remover este registro?")) onDelete(r.id); }}
+                          className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FDEAEA] text-[#A13B3B] hover:bg-[#fad3d3] transition">
+                          Remover
+                        </button>
+                      </>
+                    ) : (
+                      <ChangeRequestButtons recordId={r.id} onRequest={onRequestChange} />
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -201,11 +286,14 @@ interface ValidacaoProps {
   ajusteError: string | null;
   setAjusteError: (v: string | null) => void;
   onValidar: (id: string, status: "APPROVED" | "REJECTED" | "ADJUSTMENT_NEEDED", nota?: string) => void;
+  changeRequests: ChangeRequestRow[];
+  onReviewChange: (id: string, decision: "APPROVED" | "REJECTED", note?: string) => void;
 }
 
 export const TabValidacao: React.FC<ValidacaoProps> = ({
   pendentesList, historicoList, loadingData,
   openAjusteId, setOpenAjusteId, ajusteTex, setAjusteTex, ajusteError, setAjusteError, onValidar,
+  changeRequests, onReviewChange,
 }) => (
   <div className="space-y-4">
     <div className="flex justify-between items-end gap-4 border-b border-[#D6E2EE] pb-3">
@@ -283,6 +371,46 @@ export const TabValidacao: React.FC<ValidacaoProps> = ({
         </article>
       ))}
     </div>
+
+    {/* Solicitações de alteração */}
+    {(changeRequests ?? []).length > 0 && (
+      <div className={`${CLS.card} p-5 space-y-3`}>
+        <h3 className="text-sm font-bold text-[#1C2B3A] flex items-center gap-2">
+          Solicitações de alteração
+          <span className="bg-[#FEF0E9] text-[#E85D1F] px-2 py-0.5 rounded-full text-xs font-bold">{changeRequests.length}</span>
+        </h3>
+        {(changeRequests ?? []).map((cr) => (
+          <div key={cr.id} className={`${CLS.cardInner} p-4 space-y-2`}>
+            <div className="flex justify-between items-start gap-2">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={cr.type === "DELETE" ? "bg-[#FDEAEA] text-[#A13B3B] text-xs font-bold px-2 py-0.5 rounded-full" : "bg-[#E8F1F8] text-[#1A4F7A] text-xs font-bold px-2 py-0.5 rounded-full"}>
+                    {cr.type === "DELETE" ? "🗑 Exclusão" : "✏ Edição"}
+                  </span>
+                  <b className="text-sm break-words">{cr.record.nome}</b>
+                </div>
+                <div className="text-xs text-[#5A7184] mt-1 flex flex-wrap gap-2">
+                  <span>{cr.record.equipe}</span>
+                  <span>· Solicitado por: <b>{cr.requestedBy.name ?? cr.requestedBy.email}</b></span>
+                  <span>· {new Date(cr.createdAt).toLocaleDateString("pt-BR")}</span>
+                </div>
+                {cr.nota && <div className="text-xs bg-[#FFF8E7] text-[#795D13] rounded-lg p-2 mt-1">Motivo: {cr.nota}</div>}
+              </div>
+            </div>
+            <div className="flex gap-2 border-t border-[#D6E2EE] pt-2">
+              <button
+                onClick={() => onReviewChange(cr.id, "APPROVED")}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#E7F6EF] text-[#1B7F5A] hover:bg-[#d0efdf] transition"
+              >✓ Aprovar</button>
+              <button
+                onClick={() => { const note = prompt("Motivo da rejeição (opcional):") ?? undefined; onReviewChange(cr.id, "REJECTED", note); }}
+                className="px-3 py-1.5 text-xs font-bold rounded-lg bg-[#FDEAEA] text-[#A13B3B] hover:bg-[#fad3d3] transition"
+              >✕ Rejeitar</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
 
     {/* Histórico */}
     <div className={`${CLS.card} p-5`}>
@@ -442,8 +570,8 @@ const TABELA1_LINHAS: {
 }[] = [
   { key: "politicas",   indicador: "Documentos de recomendação para políticas públicas",   mede: "Capacidade do CIATEN de produzir evidências aplicáveis à tomada de decisão.", calculo: "Contagem de documentos concluídos e validados.", formatResult: (t) => `${t.politicas} documento${t.politicas !== 1 ? "s" : ""}` },
   { key: "publicacoes", indicador: "Publicações científicas",                              mede: "Produção de conhecimento técnico-científico.", calculo: "Soma de artigos, capítulos, livros, pré-prints e aceitações.", formatResult: (t) => `${t.publicacoes} publicaç${t.publicacoes !== 1 ? "ões" : "ão"}` },
-  { key: "cursos", indicador: "Cursos, eventos e ações de formação", mede: "Atividades formativas que qualificam profissionais.", calculo: "Número total de cursos, oficinas, workshops e eventos realizados.", formatResult: (t) => t.cursos !== 1 ? `${t.cursos} ações formativas` : "1 ação formativa" },
-  { key: "tecnologia",  indicador: "Projetos de inovação e desenvolvimento tecnológico",   mede: "Iniciativas de criação ou aprimoramento de tecnologias.", calculo: "Projetos em fase de piloto ou implementados.", formatResult: (t) => `${t.tecnologia} projeto${t.tecnologia !== 1 ? "s" : ""} tecnológico${t.tecnologia !== 1 ? "s" : ""}` },{ key: "tecnologia",  indicador: "Projetos de inovação e desenvolvimento tecnológico",   mede: "Iniciativas de criação ou aprimoramento de tecnologias.", calculo: "Projetos em fase de piloto ou implementados.", formatResult: (t) => `${t.tecnologia} projeto${t.tecnologia !== 1 ? "s" : ""} tecnológico${t.tecnologia !== 1 ? "s" : ""}` },
+  { key: "cursos",      indicador: "Cursos, eventos e ações de formação",                  mede: "Atividades formativas que qualificam profissionais.", calculo: "Número total de cursos, oficinas, workshops e eventos realizados.", formatResult: (t) => `${t.cursos} ação${t.cursos !== 1 ? "ões" : ""} formativa${t.cursos !== 1 ? "s" : ""}` },
+  { key: "tecnologia",  indicador: "Projetos de inovação e desenvolvimento tecnológico",   mede: "Iniciativas de criação ou aprimoramento de tecnologias.", calculo: "Projetos em fase de piloto ou implementados.", formatResult: (t) => `${t.tecnologia} projeto${t.tecnologia !== 1 ? "s" : ""} tecnológico${t.tecnologia !== 1 ? "s" : ""}` },
   { key: "divulgacao",  indicador: "Alcance e engajamento nas redes sociais",              mede: "Impacto e visibilidade do CIATEN na comunicação.", calculo: "Soma de visualizações, acessos e interações.", formatResult: (t) => t.divulgacao > 0 ? `${t.divulgacao.toLocaleString("pt-BR")} interações` : "a ser calculado" },
   { key: "recursos",    indicador: "Captação de recursos institucionais",                  mede: "Capacidade de mobilização financeira.", calculo: "Soma de recursos aprovados via editais, convênios e cooperações.", formatResult: (t, usd) => { const brl = t.recursos > 0 ? t.recursos.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : ""; const u = usd > 0 ? `US$ ${usd.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : ""; return [brl, u].filter(Boolean).join(" + ") || "R$ 0,00"; } },
 ];
