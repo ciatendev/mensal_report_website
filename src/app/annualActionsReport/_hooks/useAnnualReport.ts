@@ -290,7 +290,7 @@ export function useAnnualReport() {
       switch (key) {
         case "politicas":   return `${totais.politicas} documento${totais.politicas !== 1 ? "s" : ""}`;
         case "publicacoes": return `${totais.publicacoes} publicaç${totais.publicacoes !== 1 ? "ões" : "ão"}`;
-        case "cursos":      return `${totais.cursos} ação${totais.cursos !== 1 ? "ões" : ""} formativa${totais.cursos !== 1 ? "s" : ""}`;
+        case "cursos": return totais.cursos !== 1 ? `${totais.cursos} ações formativas` : "1 ação formativa";
         case "tecnologia":  return `${totais.tecnologia} projeto${totais.tecnologia !== 1 ? "s" : ""} tecnológico${totais.tecnologia !== 1 ? "s" : ""}`;
         case "divulgacao":  return totais.divulgacao > 0 ? `${totais.divulgacao.toLocaleString("pt-BR")} interações` : "a ser calculado";
         case "recursos": {
