@@ -68,14 +68,28 @@ export const MonthYearField: React.FC<MonthYearFieldProps> = ({
 }) => (
   <div className={colSpan === "full" ? "md:col-span-2" : undefined}>
     <label className={CLS.label}>{label}{required && " *"}</label>
-    {/* value precisa de "YYYY-MM-DD" — completamos com "-01".
-        onChange extrai só "YYYY-MM" (slice 0–7) descartando o dia. */}
+    {/*
+      Estratégia: usa input type="month" como primeiro choice (Chrome/Edge/Safari).
+      Firefox não suporta type="month" — ele renderiza como texto.
+      Para compatibilidade total, usamos type="date" mas exibimos e armazenamos YYYY-MM:
+      - value: se já é "YYYY-MM", adiciona "-15" (meio do mês) para o calendário abrir
+        no mês correto sem forçar o dia 1.
+      - onChange: extrai slice(0,7) para obter "YYYY-MM".
+    */}
     <input
       type="date"
-      value={value ? `${value}-01` : ""}
-      onChange={(e) => onChange(e.target.value ? e.target.value.slice(0, 7) : "")}
+      value={value ? `${value}-15` : ""}
+      onChange={(e) => {
+        const v = e.target.value; // "YYYY-MM-DD"
+        onChange(v ? v.slice(0, 7) : ""); 
+      }}
       required={required}
       className={CLS.input}
     />
+    {value && (
+      <p className="text-xs text-[#5A7184] mt-1">
+        Mês selecionado: {new Date(`${value}-15`).toLocaleDateString("pt-BR", { month: "long", year: "numeric" })}
+      </p>
+    )}
   </div>
 );

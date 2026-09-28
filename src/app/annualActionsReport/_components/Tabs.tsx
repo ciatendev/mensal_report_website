@@ -756,7 +756,17 @@ export const ModalDetalhes: React.FC<ModalProps> = ({ modalData, registrosModal,
                 )}
                 {r.valorAprovado && (
                   <p className="text-xs text-[#5A7184]">💰 Valor: <span className="text-[#1C2B3A] font-semibold">
-                    {Number(r.valorAprovado).toLocaleString("pt-BR", { style: "currency", currency: r.moeda || "BRL" })}
+                    {(() => {
+                      const ISO_CODES = ["BRL","USD","EUR","GBP","JPY","CAD","AUD","CHF","CNY","ARS","CLP","COP","MXN","PEN","UYU"];
+                      const raw = r.moeda ?? "BRL";
+                      const isISO = ISO_CODES.includes(raw);
+                      const num = Number(r.valorAprovado);
+                      if (isISO) {
+                        return num.toLocaleString("pt-BR", { style: "currency", currency: raw });
+                      }
+                      // Moeda personalizada: exibe o nome + valor formatado como BRL
+                      return `${raw} ${num.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+                    })()}
                   </span></p>
                 )}
                 {r.evidencia && (

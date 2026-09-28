@@ -3,7 +3,7 @@
  */
 import React from "react";
 import { CLS } from "@/styles/tokens";
-import { SelectField, TextField, MonthYearField } from "./FieldComponents";
+import { SelectField, TextField } from "./FieldComponents";
 import type {
   FormPoliticasProps, FormPublicacoesProps, FormCursosProps,
   FormTecnologiaProps, FormDivulgacaoProps, FormRecursosProps,
@@ -36,7 +36,7 @@ export const FormCourses: React.FC<FormCursosProps> = ({ tipo, setTipo, status, 
   <SubFormCard title="Curso, evento ou ação">
     <SelectField label="Tipo" value={tipo} onChange={setTipo!} options={TIPOS.cursos} required />
     <SelectField label="Situação" value={status!} onChange={setStatus!} options={STATUSES.cursos} required />
-    <MonthYearField label="Mês de realização" value={dataRealizacao!} onChange={setDataRealizacao!} />
+    <TextField label="Data de realização" value={dataRealizacao!} onChange={setDataRealizacao!} type="date" />
     <TextField label="Nº de participantes" value={participantes!} onChange={setParticipantes!} type="number" min="0" placeholder="Opcional" />
     <TextField label="Evidência / link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required={status === "Concluído"} colSpan="full" />
   </SubFormCard>
@@ -66,7 +66,32 @@ export const FormFeatures: React.FC<FormRecursosProps> = ({ status, setStatus, f
     {["Aprovado", "Recurso recebido"].includes(status ?? "") && (
       <>
         <TextField label="Valor aprovado" value={valorAprovado!} onChange={setValorAprovado!} type="number" step="0.01" min="0" required />
-        <SelectField label="Moeda" value={moeda!} onChange={setMoeda!} options={["BRL", "USD", "EUR", "Outra"]} required />
+        <div>
+          <label className={CLS.label}>Moeda *</label>
+          <select
+            value={["BRL","USD","EUR"].includes(moeda!) ? moeda! : "Outra"}
+            onChange={(e) => setMoeda!(e.target.value === "Outra" ? "Outra" : e.target.value)}
+            required
+            className={CLS.input}
+          >
+            <option value="">Selecione</option>
+            <option value="BRL">BRL — Real brasileiro</option>
+            <option value="USD">USD — Dólar americano</option>
+            <option value="EUR">EUR — Euro</option>
+            <option value="Outra">Outra</option>
+          </select>
+          {/* Campo de texto para moeda personalizada */}
+          {!["BRL","USD","EUR","","Outra"].includes(moeda!) || moeda === "Outra" ? (
+            <input
+              type="text"
+              value={["BRL","USD","EUR","Outra",""].includes(moeda!) ? "" : moeda!}
+              onChange={(e) => setMoeda!(e.target.value || "Outra")}
+              placeholder="Ex.: GBP, JPY, CHF..."
+              className={`${CLS.input} mt-1`}
+              maxLength={20}
+            />
+          ) : null}
+        </div>
       </>
     )}
     <TextField label="Evidência / link" value={evidencia!} onChange={setEvidencia!} type="url" placeholder="https://" required={["Aprovado","Recurso recebido"].includes(status ?? "")} colSpan="full" />
