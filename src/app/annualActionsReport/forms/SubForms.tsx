@@ -59,18 +59,102 @@ export const FormDisclouse: React.FC<FormDivulgacaoProps> = ({ tipo, setTipo, ca
   </SubFormCard>
 );
 
+
+/**
+ * CurrencyField — input estilo banco (dígito a dígito, sempre formatado).
+ * O usuário digita os números e o valor se atualiza em tempo real.
+ * Ex: digita 1 → "0,01" | digita 0 → "0,10" | digita 0 → "1,00" | digita 0 → "10,00"
+ *
+ * O que vai para o banco: string com o número em ponto flutuante "1234.56"
+ */
+function CurrencyField({
+  label, value, onChange, required, moeda = "BRL",
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  required?: boolean;
+  moeda?: string;
+}) {
+  const toCents = (v: string) => {
+    if (!v) return 0;
+    const n = parseFloat(v);
+    if (isNaN(n)) return 0;
+    return Math.round(n * 100);
+  };
+
+  const [cents, setCents] = React.useState<number>(toCents(value));
+
+  React.useEffect(() => {
+    if (!value || value === "0" || value === "0.00") setCents(0);
+  }, [value]);
+
+  // Formata centavos de acordo com a moeda selecionada
+  const ISO_CODES = ["BRL","USD","EUR","GBP","JPY","CAD","AUD","CHF","CNY"];
+  const isISO = ISO_CODES.includes(moeda);
+  const isOutra = !isISO && moeda !== "";
+
+  const display = isISO
+    ? (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: moeda, minimumFractionDigits: 2 })
+    : isOutra
+    ? `${moeda} ${(cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+    : (cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 }); // moeda não definida: sem prefixo
+
+  function handleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key >= "0" && e.key <= "9") {
+      e.preventDefault();
+      const next = Math.min(cents * 10 + parseInt(e.key), 999_999_999_99);
+      setCents(next);
+      onChange((next / 100).toFixed(2));
+    } else if (e.key === "Backspace") {
+      e.preventDefault();
+      const next = Math.floor(cents / 10);
+      setCents(next);
+      onChange((next / 100).toFixed(2));
+    } else if (e.key === "Delete") {
+      e.preventDefault();
+      setCents(0);
+      onChange("0.00");
+    }
+  }
+
+  return (
+    <div>
+      <label className={CLS.label}>{label}{required && " *"}</label>
+      <input
+        type="text"
+        inputMode="numeric"
+        value={display}
+        onKeyDown={handleKeyDown}
+        onChange={() => {}}
+        required={required}
+        className={`${CLS.input} font-mono tracking-wide`}
+      />
+    </div>
+  );
+}
+
 export const FormFeatures: React.FC<FormRecursosProps> = ({ status, setStatus, financiador, setFinanciador, valorAprovado, setValorAprovado, moeda, setMoeda, evidencia, setEvidencia, STATUSES }) => (
   <SubFormCard title="Captação de recursos">
     <TextField label="Instituição financiadora" value={financiador!} onChange={setFinanciador!} placeholder="Ex.: FAPEPI" required />
     <SelectField label="Situação" value={status!} onChange={setStatus!} options={STATUSES.recursos} required />
     {["Aprovado", "Recurso recebido"].includes(status ?? "") && (
       <>
-        <TextField label="Valor aprovado" value={valorAprovado!} onChange={setValorAprovado!} type="number" step="0.01" min="0" required />
+        <CurrencyField
+          label="Valor aprovado"
+          value={valorAprovado!}
+          onChange={setValorAprovado!}
+          moeda={moeda!}
+          required
+        />
         <div>
           <label className={CLS.label}>Moeda *</label>
           <select
             value={["BRL","USD","EUR"].includes(moeda!) ? moeda! : "Outra"}
-            onChange={(e) => setMoeda!(e.target.value === "Outra" ? "Outra" : e.target.value)}
+            onChange={(e) => {
+              if (e.target.value !== "Outra") setMoeda!(e.target.value);
+              else setMoeda!(""); // limpa para o usuário digitar
+            }}
             required
             className={CLS.input}
           >
@@ -80,17 +164,18 @@ export const FormFeatures: React.FC<FormRecursosProps> = ({ status, setStatus, f
             <option value="EUR">EUR — Euro</option>
             <option value="Outra">Outra</option>
           </select>
-          {/* Campo de texto para moeda personalizada */}
-          {!["BRL","USD","EUR","","Outra"].includes(moeda!) || moeda === "Outra" ? (
+          {/* Mostramos o campo de texto quando NÃO é BRL/USD/EUR */}
+          {!["BRL","USD","EUR"].includes(moeda!) && (
             <input
               type="text"
-              value={["BRL","USD","EUR","Outra",""].includes(moeda!) ? "" : moeda!}
-              onChange={(e) => setMoeda!(e.target.value || "Outra")}
+              value={moeda!}
+              onChange={(e) => setMoeda!(e.target.value.toUpperCase())}
               placeholder="Ex.: GBP, JPY, CHF..."
               className={`${CLS.input} mt-1`}
-              maxLength={20}
+              maxLength={10}
+              autoFocus
             />
-          ) : null}
+          )}
         </div>
       </>
     )}
