@@ -12,8 +12,8 @@ import type { ChangeRequestRow } from "../_hooks/useAnnualReport";
 
 // ─── Shared table primitives ─────────────────────────────────────────────────
 const TableWrap: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="overflow-x-auto -mx-5 px-5 rounded-xl">
-    <table className="table-auto text-sm border-collapse w-full">{children}</table>
+  <div className="overflow-x-auto -mx-1 px-1 rounded-xl">
+    <table className="table-auto w-full text-sm border-collapse">{children}</table>
   </div>
 );
 const Thead: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -554,15 +554,15 @@ export const TabResultadosEquipe: React.FC<ResultadosEquipeProps> = ({
       </div>
       <TableWrap>
         <Thead>
-          <Th className="min-w-[130px]">Equipe / Núcleo</Th>
-          {COLS.map((c) => <Th key={c.key} className="min-w-[110px]">{c.label}</Th>)}
+          <Th className="min-w-[200px]">Equipe / Núcleo</Th>
+          {COLS.map((c) => <Th key={c.key} className="min-w-[180px]">{c.label}</Th>)}
         </Thead>
         <tbody>
           {dbEquipes.map((eq, i) => (
             <tr key={eq} className={i % 2 === 0 ? "bg-white" : "bg-[#F5F7FA]"}>
-              <Td className="font-semibold text-[#1C2B3A] min-w-[130px]">{eq}</Td>
+              <Td className="font-semibold text-[#1C2B3A] min-w-[200px]">{eq}</Td>
               {COLS.map(({ key, fmt }) => (
-                <TdWrap key={key} className="min-w-[110px]">
+                <TdWrap key={key} className="min-w-[180px]">
                   <button onClick={() => onOpenModal(key, eq)} disabled={!resumo[eq]?.[key]}
                     className="font-extrabold text-[#1A4F7A] underline disabled:no-underline disabled:text-[#5A7184] text-sm break-words text-left">
                     {key === "recursos" ? fmtBrl(resumo[eq]?.[key] ?? 0) : fmtNum(resumo[eq]?.[key] ?? 0)}
@@ -689,18 +689,18 @@ export const TabResultadosCiaten: React.FC<SinteseCiatenProps> = ({
         </p>
         <TableWrap>
           <Thead>
-            <Th className="min-w-[180px]">Indicador</Th>
-            <Th className="min-w-[160px]">O que mede</Th>
-            <Th className="min-w-[160px]">Como é calculado</Th>
-            <Th className="min-w-[120px]">{ano}</Th>
+            <Th className="min-w-[260px]">Indicador</Th>
+            <Th className="min-w-[240px]">O que mede</Th>
+            <Th className="min-w-[240px]">Como é calculado</Th>
+            <Th className="min-w-[160px]">{ano}</Th>
           </Thead>
           <tbody>
             {TABELA1_LINHAS.map(({ key, indicador, mede, calculo, formatResult }, i) => (
               <tr key={key} className={i % 2 === 0 ? "bg-white" : "bg-[#F5F7FA]"}>
-                <Td className="font-bold text-[#1C2B3A] min-w-[180px]">{indicador}</Td>
-                <TdWrap className="text-[#5A7184] min-w-[160px]">{mede}</TdWrap>
-                <TdWrap className="text-[#5A7184] min-w-[160px]">{calculo}</TdWrap>
-                <Td className="min-w-[120px] break-all">
+                <Td className="font-bold text-[#1C2B3A] min-w-[260px]">{indicador}</Td>
+                <TdWrap className="text-[#5A7184] min-w-[240px]">{mede}</TdWrap>
+                <TdWrap className="text-[#5A7184] min-w-[240px]">{calculo}</TdWrap>
+                <Td className="min-w-[160px] break-all">
                   <button
                     onClick={() => totais[key] > 0 ? onOpenModal(key, "") : undefined}
                     disabled={totais[key] === 0}
