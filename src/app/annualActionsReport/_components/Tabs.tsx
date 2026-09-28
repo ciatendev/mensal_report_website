@@ -2,7 +2,7 @@
  * Tabs.tsx — Abas da página annualActionsReport.
  * Usa DbRegistro (dados do banco), ActivityStatus e contabiliza() atualizados.
  */
-import React from "react";
+import React, { useCallback, useState as useStateLocal } from "react";
 import { CLS } from "@/styles/tokens";
 import {
   INDICADORES, INDICADOR_LABEL_CURTO, IndicadorKey,
@@ -12,8 +12,8 @@ import type { ChangeRequestRow } from "../_hooks/useAnnualReport";
 
 // ─── Shared table primitives ─────────────────────────────────────────────────
 const TableWrap: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div className="overflow-x-auto rounded-xl">
-    <table className="table-auto w-full text-sm border-collapse">{children}</table>
+  <div className="overflow-x-auto -mx-5 px-5 rounded-xl">
+    <table className="table-auto text-sm border-collapse w-full">{children}</table>
   </div>
 );
 const Thead: React.FC<{ children: React.ReactNode }> = ({ children }) => (
@@ -458,6 +458,52 @@ const COLS: { key: IndicadorKey; label: string; fmt: (v: number) => string }[] =
   { key: "recursos",    label: "Captação de Recursos",     fmt: fmtBrl },
 ];
 
+
+// ─── Botões de exportação PNG / PDF ─────────────────────────────────────────
+import type { TableExportData } from "@/lib/export-image";
+
+function ExportImageButtons({ getData, baseName }: {
+  getData: () => TableExportData;
+  baseName: string;
+}) {
+  const [status, setStatus] = useStateLocal<"idle"|"png"|"pdf">("idle");
+
+  const handle = useCallback(async (type: "png"|"pdf") => {
+    setStatus(type);
+    try {
+      const data = getData();
+      if (type === "png") {
+        const { exportTableAsPng } = await import("@/lib/export-image");
+        await exportTableAsPng(data, `${baseName}.png`);
+      } else {
+        const { exportTableAsPdf } = await import("@/lib/export-image");
+        await exportTableAsPdf(data, `${baseName}.pdf`);
+      }
+    } catch (e) {
+      console.error("Exportação falhou:", e);
+    } finally {
+      setStatus("idle");
+    }
+  }, [getData, baseName]);
+
+  const loading = status !== "idle";
+
+  return (
+    <>
+      <button onClick={() => handle("png")} disabled={loading}
+        className="px-3 py-2 bg-[#E8F1F8] text-[#1A4F7A] font-bold rounded-xl hover:bg-[#d4e5f3] transition text-sm disabled:opacity-50 flex items-center gap-1">
+        {status === "png" ? <span className="w-3.5 h-3.5 border-2 border-[#1A4F7A] border-t-transparent rounded-full animate-spin inline-block" /> : "🖼"}
+        PNG
+      </button>
+      <button onClick={() => handle("pdf")} disabled={loading}
+        className="px-3 py-2 bg-[#E8F1F8] text-[#1A4F7A] font-bold rounded-xl hover:bg-[#d4e5f3] transition text-sm disabled:opacity-50 flex items-center gap-1">
+        {status === "pdf" ? <span className="w-3.5 h-3.5 border-2 border-[#1A4F7A] border-t-transparent rounded-full animate-spin inline-block" /> : "📄"}
+        PDF
+      </button>
+    </>
+  );
+}
+
 interface ResultadosEquipeProps {
   resumo: Record<string, Record<IndicadorKey, number>>;
   totais: Record<IndicadorKey, number>;
@@ -473,7 +519,17 @@ interface ResultadosEquipeProps {
 export const TabResultadosEquipe: React.FC<ResultadosEquipeProps> = ({
   resumo, totais, onOpenModal, onExportCsv,
   onExportSheets, sheetsStatus, sheetsError, isSuperUser, dbEquipes,
-}) => (
+}) => {
+  const ano = new Date().getFullYear();
+  const getT2Data = useCallback((): TableExportData => ({
+    type: "tabela2",
+    ano,
+    equipes: dbEquipes,
+    cols: COLS.map(c => ({ key: c.key, label: c.label, fmt: c.fmt })),
+    resumo: resumo as Record<string, Record<string, number>>,
+    totais: totais as Record<string, number>,
+  }), [ano, dbEquipes, resumo, totais]);
+  return (
   <div className="space-y-4">
     {/* KPI cards */}
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
@@ -481,7 +537,7 @@ export const TabResultadosEquipe: React.FC<ResultadosEquipeProps> = ({
         <div key={key} className={`${CLS.card} p-4`}>
           <p className="text-xs text-[#5A7184] leading-snug mb-1">{label}</p>
           <button onClick={() => onOpenModal(key, "")} disabled={!totais[key]}
-            className="text-xl font-extrabold text-[#1A4F7A] underline disabled:no-underline disabled:text-[#5A7184] break-words text-left">
+            className="text-xl font-extrabold text-[#1A4F7A] underline disabled:no-underline disabled:text-[#5A7184] break-all text-left w-full">
             {fmt(totais[key])}
           </button>
         </div>
@@ -492,21 +548,21 @@ export const TabResultadosEquipe: React.FC<ResultadosEquipeProps> = ({
     <div className={`${CLS.card} p-5`}>
       <div className="mb-4">
         <h2 className="text-base font-bold text-[#1C2B3A]">
-          Tabela 2 — Síntese de Indicadores por Núcleo, {new Date().getFullYear()}
+          Tabela 2 — Síntese de Indicadores por Núcleo, {ano}
         </h2>
         <p className="text-xs text-[#5A7184] mt-0.5">* Apenas registros <b>Aprovados</b> são contabilizados.</p>
       </div>
       <TableWrap>
         <Thead>
-          <Th className="min-w-[200px]">Equipe / Núcleo</Th>
-          {COLS.map((c) => <Th key={c.key} className="min-w-[180px]">{c.label}</Th>)}
+          <Th className="min-w-[130px]">Equipe / Núcleo</Th>
+          {COLS.map((c) => <Th key={c.key} className="min-w-[110px]">{c.label}</Th>)}
         </Thead>
         <tbody>
           {dbEquipes.map((eq, i) => (
             <tr key={eq} className={i % 2 === 0 ? "bg-white" : "bg-[#F5F7FA]"}>
-              <Td className="font-semibold text-[#1C2B3A] min-w-[200px]">{eq}</Td>
+              <Td className="font-semibold text-[#1C2B3A] min-w-[130px]">{eq}</Td>
               {COLS.map(({ key, fmt }) => (
-                <TdWrap key={key} className="min-w-[180px]">
+                <TdWrap key={key} className="min-w-[110px]">
                   <button onClick={() => onOpenModal(key, eq)} disabled={!resumo[eq]?.[key]}
                     className="font-extrabold text-[#1A4F7A] underline disabled:no-underline disabled:text-[#5A7184] text-sm break-words text-left">
                     {key === "recursos" ? fmtBrl(resumo[eq]?.[key] ?? 0) : fmtNum(resumo[eq]?.[key] ?? 0)}
@@ -548,6 +604,7 @@ export const TabResultadosEquipe: React.FC<ResultadosEquipeProps> = ({
     {/* Ações */}
     <div className={`${CLS.card} p-4 flex flex-wrap gap-3 items-center`}>
       <button onClick={onExportCsv} className={CLS.btnGhost}>⬇ Exportar CSV</button>
+      <ExportImageButtons getData={getT2Data} baseName={`ciaten_tabela2_${ano}`} />
       {isSuperUser && (
         <button
           onClick={onExportSheets}
@@ -562,7 +619,8 @@ export const TabResultadosEquipe: React.FC<ResultadosEquipeProps> = ({
       )}
     </div>
   </div>
-);
+  );
+};
 
 // ─── Tabela 1: Síntese CIATEN ─────────────────────────────────────────────────
 const TABELA1_LINHAS: {
@@ -604,6 +662,17 @@ export const TabResultadosCiaten: React.FC<SinteseCiatenProps> = ({
   onExportSheets, sheetsExportStatus, sheetsExportError, isSuperUser,
 }) => {
   const ano = new Date().getFullYear();
+  const getT1Data = useCallback((): TableExportData => ({
+    type: "tabela1",
+    ano,
+    rows: TABELA1_LINHAS.map(l => ({
+      indicador: l.indicador,
+      mede:      l.mede,
+      calculo:   l.calculo,
+      resultado: l.formatResult(totais, usdTotal),
+    })),
+  }), [ano, totais, usdTotal]);
+
   const st  = (t: string) => sheetsExportStatus[t] ?? "idle";
   const err = (t: string) => sheetsExportError[t] ?? null;
 
@@ -620,18 +689,18 @@ export const TabResultadosCiaten: React.FC<SinteseCiatenProps> = ({
         </p>
         <TableWrap>
           <Thead>
-            <Th className="min-w-[260px]">Indicador</Th>
-            <Th className="min-w-[240px]">O que mede</Th>
-            <Th className="min-w-[240px]">Como é calculado</Th>
-            <Th className="min-w-[160px]">{ano}</Th>
+            <Th className="min-w-[180px]">Indicador</Th>
+            <Th className="min-w-[160px]">O que mede</Th>
+            <Th className="min-w-[160px]">Como é calculado</Th>
+            <Th className="min-w-[120px]">{ano}</Th>
           </Thead>
           <tbody>
             {TABELA1_LINHAS.map(({ key, indicador, mede, calculo, formatResult }, i) => (
               <tr key={key} className={i % 2 === 0 ? "bg-white" : "bg-[#F5F7FA]"}>
-                <Td className="font-bold text-[#1C2B3A] min-w-[260px]">{indicador}</Td>
-                <TdWrap className="text-[#5A7184] min-w-[240px]">{mede}</TdWrap>
-                <TdWrap className="text-[#5A7184] min-w-[240px]">{calculo}</TdWrap>
-                <Td className="min-w-[160px]">
+                <Td className="font-bold text-[#1C2B3A] min-w-[180px]">{indicador}</Td>
+                <TdWrap className="text-[#5A7184] min-w-[160px]">{mede}</TdWrap>
+                <TdWrap className="text-[#5A7184] min-w-[160px]">{calculo}</TdWrap>
+                <Td className="min-w-[120px] break-all">
                   <button
                     onClick={() => totais[key] > 0 ? onOpenModal(key, "") : undefined}
                     disabled={totais[key] === 0}
@@ -669,6 +738,9 @@ export const TabResultadosCiaten: React.FC<SinteseCiatenProps> = ({
           <div className="border border-[#D6E2EE] rounded-xl p-4 space-y-3">
             <div><p className="font-semibold text-sm text-[#1C2B3A]">Tabela 1</p><p className="text-xs text-[#5A7184]">Síntese consolidada por indicador</p></div>
             <button onClick={onExportCsv} className="w-full px-3 py-2 bg-[#E8F1F8] text-[#1A4F7A] font-bold rounded-xl hover:bg-[#d4e5f3] transition text-sm">⬇ Baixar CSV</button>
+            <div className="flex gap-2">
+              <ExportImageButtons getData={getT1Data} baseName={`ciaten_tabela1_${ano}`} />
+            </div>
             {isSuperUser && <SheetsBtn label="Exportar para Sheets" status={st("tabela1")} onClick={() => onExportSheets("tabela1")} />}
           </div>
           {/* Tabela 2 */}
